@@ -32,7 +32,18 @@ export default function HomePage() {
         </nav>
 
 
-        <button className="md:hidden p-2 rounded-lg bg-white shadow-sm">Menu</button>
+        <details className="md:hidden">
+          <summary className="p-2 rounded-lg bg-white shadow-sm list-none cursor-pointer">
+            Menu
+          </summary>
+
+          <nav className="mt-2 flex flex-col gap-3 bg-white rounded-lg p-3 shadow-sm">
+            <Link href="/services" className="hover:underline">Services</Link>
+            <Link href="/products" className="hover:underline">Products</Link>
+            <a href="#contact" className="hover:underline">Contact</a>
+            <Link href="/about" className="hover:underline">About</Link>
+          </nav>
+        </details>
       </header>
 
 
@@ -49,9 +60,15 @@ export default function HomePage() {
               <svg viewBox="0 0 600 400" className="w-full h-auto">
                 <rect x="0" y="0" width="600" height="400" rx="20" fill="#f8fafc" />
                 <g transform="translate(40,40)">
-                  <rect width="220" height="120" rx="12" fill="#eef2ff" />
-                  <rect x="240" width="320" height="120" rx="12" fill="#fff" stroke="#e6e7ee" />
-                  <rect y="140" width="520" height="180" rx="12" fill="#fff" stroke="#e6e7ee" />
+                  <rect width="220" height="120" rx="12" fill="#eef2ff">
+                  <animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" repeatCount="indefinite" />
+                  </rect>
+                  <rect x="240" width="320" height="120" rx="12" fill="#fff" stroke="#e6e7ee">
+                  <animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" begin="0.4s" repeatCount="indefinite" />
+                  </rect>
+                  <rect y="140" width="520" height="180" rx="12" fill="#fff" stroke="#e6e7ee">
+                  <animate attributeName="opacity" values="0.5;1;0.5" dur="1.2s" begin="0.8s" repeatCount="indefinite" />
+                  </rect>
                 </g>
               </svg>
             </div>

@@ -27,9 +27,19 @@ export default function Layout({ children }: { children: ReactNode }) {
             <a href="mailto:techevo404@gmail.com" className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Contact</a>
           </nav>
 
-          <div className="md:hidden">
-            <button className="p-2 rounded-lg bg-white shadow-sm">Menu</button>
-          </div>
+
+          <details className="md:hidden">
+            <summary className="p-2 rounded-lg bg-white shadow-sm list-none cursor-pointer">
+              Menu
+            </summary>
+
+            <nav className="mt-2 flex flex-col gap-3 bg-white rounded-lg p-3 shadow-sm">
+              <Link href="/services" className="hover:underline">Services</Link>
+              <Link href="/products" className="hover:underline">Products</Link>
+              <Link href="/#contact" className="hover:underline">Contact</Link>
+              <Link href="/about" className="hover:underline">About</Link>
+            </nav>
+          </details>
         </div>
       </header>
 
