@@ -26,7 +26,7 @@ export default function HomePage() {
 
         <nav className="hidden md:flex items-center gap-6 text-sm text-gray-700">
           <Link href="/services" className="hover:underline">Services</Link>
-          <Link href="/#Products" className="hover:underline">Products</Link>
+          <Link href="/products" className="hover:underline">Products</Link>
           <a href="#contact" className="hover:underline">Contact</a>
           <Link href="/about" className="hover:underline">About</Link>
         </nav>
@@ -81,7 +81,7 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-        {/* CONTACT (kept simple) */}
+        {/* CONTACT */}
         <section id="contact" className="mt-16 mb-20 grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="bg-white p-6 rounded-2xl shadow-sm">
             <h4 className="font-bold text-lg">Contact & Quote</h4>

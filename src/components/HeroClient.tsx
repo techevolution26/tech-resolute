@@ -23,7 +23,7 @@ export default function HeroClient() {
 
             <div className="mt-6 flex gap-4">
                 <a href="#contact" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-600 text-white font-semibold shadow-lg">Get a Quote</a>
-                <a href="#product" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-gray-200">See Products</a>
+                <a href="products" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-white border border-gray-200">See Products</a>
             </div>
 
 

@@ -33,6 +33,7 @@ export default function ServicesPage() {
           <div className="flex gap-3">
             <div className="bg-white px-3 py-2 rounded-lg shadow-sm text-sm">Churches</div>
             <div className="bg-white px-3 py-2 rounded-lg shadow-sm text-sm">Local NGO</div>
+            <div className="bg-white px-3 py-2 rounded-lg shadow-sm text-sm">Banking Sector</div>
             <div className="bg-white px-3 py-2 rounded-lg shadow-sm text-sm"> Local Super-Markets</div>
           </div>
         </div>
