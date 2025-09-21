@@ -39,8 +39,14 @@ export default function AdminProductsPage() {
         const body = await res.json()
         // if API returns paginated {data: [...]}
         const list = body.data ?? body
+        // normalize nested objects (e.g., category or condition may be returned as an object)
+        const normalize = (item: any) => ({
+          ...item,
+          category: item?.category?.name ?? item?.category ?? undefined,
+          condition: item?.condition?.name ?? item?.condition ?? undefined,
+        })
         if (!mounted) return
-        setProducts(list)
+        setProducts(Array.isArray(list) ? list.map(normalize) : list)
       } catch (err) {
         setError((err as Error).message)
       } finally {
