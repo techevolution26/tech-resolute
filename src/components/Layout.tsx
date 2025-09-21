@@ -6,18 +6,60 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { getAdminToken } from '@/lib/adminApi' // reads ADMIN_TOKEN from localStorage
 
 export default function Layout({ children }: { children?: React.ReactNode }) {
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [checkingAdmin, setCheckingAdmin] = useState(true)
   const pathname = usePathname()
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 10)
-    }
+    const handleScroll = () => setIsScrolled(window.scrollY > 10)
     window.addEventListener('scroll', handleScroll)
     return () => window.removeEventListener('scroll', handleScroll)
   }, [])
+
+  // verify admin token (if present) by calling protected /v1/admin/me
+  useEffect(() => {
+    async function check() {
+      setCheckingAdmin(true)
+      try {
+        const token = getAdminToken()
+        if (!token) {
+          setIsAdmin(false)
+          setCheckingAdmin(false)
+          return
+        }
+
+        const base = process.env.NEXT_PUBLIC_API_URL ?? ''
+        const res = await fetch(`${base}/v1/admin/me`, {
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          credentials: 'same-origin'
+        })
+
+        if (!res.ok) {
+          setIsAdmin(false)
+          setCheckingAdmin(false)
+          return
+        }
+
+        const data = await res.json()
+        // expect { id, email, name, is_admin: true } (AuthController.me)
+        setIsAdmin(Boolean(data && data.is_admin))
+      } catch (err) {
+        setIsAdmin(false)
+      } finally {
+        setCheckingAdmin(false)
+      }
+    }
+
+    check()
+    // run again when pathname changes (optional) so header keeps synced after login/logout
+  }, [pathname])
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white via-gray-50 to-gray-100 text-gray-900">
@@ -25,16 +67,16 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3 group">
-              <motion.div 
+              <motion.div
                 whileHover={{ scale: 1.05 }}
                 className="relative"
               >
-                <Image 
-                  src="/techresolute.JPEG" 
-                  alt="Tech Resolute" 
-                  width={40} 
-                  height={40} 
-                  className="rounded-2xl object-cover shadow-sm group-hover:shadow-md transition-shadow" 
+                <Image
+                  src="/techresolute.JPEG"
+                  alt="Tech Resolute"
+                  width={40}
+                  height={40}
+                  className="rounded-2xl object-cover shadow-sm group-hover:shadow-md transition-shadow"
                 />
                 <div className="absolute -top-1 -right-1 h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
               </motion.div>
@@ -51,14 +93,14 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
               { href: '/products', label: 'Products' },
               { href: '/about', label: 'About' },
             ].map((item) => (
-              <Link 
+              <Link
                 key={item.href}
                 href={item.href}
                 className={`relative px-1 py-2 font-medium transition-colors duration-300 ${pathname === item.href ? 'text-indigo-600' : 'text-gray-700 hover:text-indigo-600'}`}
               >
                 {item.label}
                 {pathname === item.href && (
-                  <motion.div 
+                  <motion.div
                     layoutId="navbar-indicator"
                     className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600 rounded-full"
                     transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
@@ -66,12 +108,37 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
                 )}
               </Link>
             ))}
-            <a 
-              href="mailto:techevo404@gmail.com" 
+
+            {/* preserve Contact button */}
+            <a
+              href="mailto:techevo404@gmail.com"
               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-0.5"
             >
               Contact
             </a>
+
+            {/*
+              Admin link logic:
+                - while checkingAdmin === true => render nothing (avoids flicker)
+                - when checkingAdmin === false:
+                    - if isAdmin === true => show Admin dashboard link
+                    - else => show Admin sign in link (so admins can discover login)
+            */}
+            {!checkingAdmin && (isAdmin ? (
+              <Link
+                href="/admin"
+                className={`ml-2 px-3 py-2 rounded-md font-medium transition-colors duration-300 ${pathname === '/admin' ? 'text-indigo-600' : 'text-gray-700 hover:text-indigo-600'}`}
+              >
+                Admin
+              </Link>
+            ) : (
+              <Link
+                href="/admin/login"
+                className="ml-2 px-3 py-2 rounded-md font-medium text-gray-700 hover:text-indigo-600 transition-colors duration-300"
+              >
+                Admin sign in
+              </Link>
+            ))}
           </nav>
 
           <details className="md:hidden group">
@@ -88,12 +155,23 @@ export default function Layout({ children }: { children?: React.ReactNode }) {
                 { href: '/about', label: 'About' },
                 { href: 'mailto:techevo404@gmail.com', label: 'Contact' },
               ].map((item) => (
-                <Link 
+                <Link
                   key={item.href}
                   href={item.href}
                   className="px-4 py-2 rounded-md hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
                 >
                   {item.label}
+                </Link>
+              ))}
+
+              {/* mobile admin link: show sign-in if not admin, dashboard if admin */}
+              {!checkingAdmin && (isAdmin ? (
+                <Link href="/admin" className="px-4 py-2 rounded-md hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  Admin
+                </Link>
+              ) : (
+                <Link href="/admin/login" className="px-4 py-2 rounded-md hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                  Admin sign in
                 </Link>
               ))}
             </nav>
