@@ -81,6 +81,11 @@ export default function AdminHome() {
           <div className="mt-2 text-2xl font-semibold">Create / edit products</div>
         </Link>
 
+        <Link href="/admin/categories" className="p-6 bg-white rounded-2xl shadow-sm hover:shadow-md">
+          <div className="text-sm text-gray-500">Categories</div>
+          <div className="mt-2 text-2xl font-semibold">Manage product categories</div>
+        </Link>
+
         <Link href="/admin/sellers" className="p-6 bg-white rounded-2xl shadow-sm hover:shadow-md">
           <div className="text-sm text-gray-500">Sellers</div>
           <div className="mt-2 text-2xl font-semibold">Applications & approvals</div>
