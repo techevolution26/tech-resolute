@@ -1,34 +1,52 @@
 /**
  * normalizeSrc helper for Next.js images.
+ * - returns a safe absolute URL when possible
+ * - accepts absolute URLs, protocol-relative URLs, or relative storage paths
+ * - avoids double-prefixing hosts
  */
-
 export function normalizeSrc(src?: string | null): string {
-    if (!src) return '';
+    if (!src) return ''
 
-    const original = String(src).trim();
-    if (!original) return '';
+    let original = String(src).trim()
+    if (!original) return ''
+
+    // If the input accidentally contains two absolute URLs concatenated like:
+    // "http://host1http://host2/...", keep last http... part.
+    const idxFirst = original.indexOf('http')
+    const idxLast = original.lastIndexOf('http')
+    if (idxFirst !== -1 && idxLast > idxFirst) {
+        original = original.slice(idxLast)
+    }
 
     // data URI -> pass through
-    if (original.startsWith('data:')) return original;
+    if (original.startsWith('data:')) return original
 
-    // If it's an absolute URL already, just normalize any /api/storage -> /storage
-    if (/^https?:\/\//i.test(original) || /^\/\//.test(original)) {
-        const abs = original.startsWith('//') ? 'http:' + original : original;
-        return abs.replace(/\/api\/storage/gi, '/storage');
+    // protocol-relative -> make absolute with http:
+    if (/^\/\//.test(original)) original = 'http:' + original
+
+    // If it's already absolute, normalize /api/storage -> /storage and return
+    if (/^https?:\/\//i.test(original)) {
+        return original.replace(/\/api\/storage/gi, '/storage')
     }
 
-    // If it's a relative path like "/storage/..." or "/api/storage/..."
-    const relative = original.replace(/\/api\/storage/gi, '/storage');
-    const path = relative.startsWith('/') ? relative : `/${relative}`;
+    // If it's a relative path (no protocol), normalize /api/storage -> /storage
+    let relative = original.replace(/\/api\/storage/gi, '/storage')
+    if (!relative.startsWith('/')) relative = '/' + relative
 
-    // Prefer explicit storage env; otherwise derive storage base from API env
-    const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/+$/, '');
-    let backend = storageEnv;
+    // choose backend
+    const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/+$/, '')
+    let backend = storageEnv
     if (!backend) {
-        backend = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '');
-        // striping a trailing '/api' if present (case-insensitive)
-        backend = backend.replace(/\/api$/i, '');
+        backend = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
+        backend = backend.replace(/\/api$/i, '')
     }
 
-    return `${backend}${path}`;
+    const out = `${backend}${relative}`
+
+    // final sanity: if out accidentally contains two host parts, keep last
+    const firstHttp = out.indexOf('http')
+    const lastHttp = out.lastIndexOf('http')
+    if (firstHttp !== -1 && lastHttp > firstHttp) return out.slice(lastHttp)
+
+    return out
 }

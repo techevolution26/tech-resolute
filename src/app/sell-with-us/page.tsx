@@ -1,9 +1,9 @@
 // src/app/sell-with-us/page.tsx
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import Image from 'next/image'
-import { normalizeSrc } from '@/lib/normalizeSrc'
+import { normalizeSrc } from '../../lib/normalizeSrc'
 
 type ItemRow = {
     id: string
@@ -52,15 +52,19 @@ export default function SellWithUsPage() {
         items: [makeEmptyItem()]
     })
 
-    // upload / UI states
-    const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({}) // key -> 0..100
-    const [fileUploading, setFileUploading] = useState(false) // overall uploading flag
+    const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
+    const [fileUploading, setFileUploading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [errors, setErrors] = useState<Record<string, string[]>>({})
     const [success, setSuccess] = useState<string | null>(null)
 
-    const base = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
+    // IMPORTANT: set sensible envs:
+    // NEXT_PUBLIC_API_URL => e.g. http://127.0.0.1:8000/api
+    // NEXT_PUBLIC_STORAGE_URL => e.g. http://127.0.0.1:8000  (no /api)
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '')
+    const storageBaseCandidate = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/$/, '')
+    const storageBase = storageBaseCandidate || apiBase.replace(/\/api\/?$/i, '')
 
     // --- helper: client-side image resize to a blob ---
     async function resizeImage(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<Blob> {
@@ -70,7 +74,6 @@ export default function SellWithUsPage() {
 
             img.onload = () => {
                 try {
-                    // compute target size while preserving aspect ratio
                     const { width, height } = img
                     const ratio = Math.min(maxWidth / width, maxHeight / height, 1)
                     const w = Math.round(width * ratio)
@@ -87,7 +90,6 @@ export default function SellWithUsPage() {
                     }
                     ctx.drawImage(img, 0, 0, w, h)
 
-                    // choose output format based on original file type
                     const ext = file.type.split('/')[1] || 'jpeg'
                     const mime = ext === 'png' ? 'image/png' : 'image/jpeg'
                     canvas.toBlob(
@@ -110,25 +112,22 @@ export default function SellWithUsPage() {
                 reject(new Error('Failed to load image for resizing'))
             }
 
-            // load via blob URL so we support local files
             img.src = url
         })
     }
 
     // --- helper: upload with progress (xhr) ---
-    // key is a string identifier used to update uploadProgress (e.g. 'logo' or itemId)
-    // returns an absolute URL (tries resp.url, resp.publicUrl, resp.path, resp.key)
+    // NOTE: POST goes to apiBase; we return a validated absolute storage URL (or empty string)
     async function uploadFileWithProgress(file: File, key: string): Promise<string> {
         setFileUploading(true)
         setUploadProgress(prev => ({ ...prev, [key]: 0 }))
         try {
-            // try resize, but fall back to original file if resize fails
             let uploadBlob: File | Blob = file
             try {
                 const resized = await resizeImage(file, 1200, 1200, 0.8)
                 if (resized instanceof Blob) uploadBlob = resized
-            } catch (e) {
-                // ignore resize errors and continue with original file
+            } catch {
+                // ignore resize failures, use original file
             }
 
             const fd = new FormData()
@@ -137,7 +136,7 @@ export default function SellWithUsPage() {
 
             return await new Promise<string>((resolve, reject) => {
                 const xhr = new XMLHttpRequest()
-                xhr.open('POST', `${base}/v1/uploads`)
+                xhr.open('POST', `${apiBase}/v1/uploads`)
                 xhr.responseType = 'json'
 
                 xhr.upload.onprogress = (ev) => {
@@ -150,14 +149,48 @@ export default function SellWithUsPage() {
                     const status = xhr.status
                     const resp = xhr.response || {}
                     setUploadProgress(prev => ({ ...prev, [key]: 100 }))
+
                     if (status >= 200 && status < 300) {
                         const maybe = resp?.url || resp?.publicUrl || resp?.path || resp?.key
                         if (!maybe) return resolve('')
-                        const absolute = String(maybe).startsWith('/') ? `${base}${maybe}` : String(maybe)
-                        // normalize possible /api/storage -> /storage
-                        resolve(absolute.replace(/\/api\/storage/gi, '/storage'))
+                        let absolute = String(maybe).trim()
+
+                        // if server returned a protocol-relative URL //
+                        if (/^\/\//.test(absolute)) absolute = 'http:' + absolute
+
+                        // if server returned a relative path like "/storage/..." or "storage/..."
+                        // we will prefix storageBase
+                        if (!/^https?:\/\//i.test(absolute)) {
+                            // ensure it starts with '/'
+                            const p = absolute.startsWith('/') ? absolute : `/${absolute.replace(/^\/+/, '')}`
+                            absolute = `${storageBase}${p}`
+                        }
+
+                        // normalize accidental /api/storage -> /storage
+                        absolute = absolute.replace(/\/api\/storage/gi, '/storage')
+
+                        // If the string mistakenly contains a repeated host (e.g. host + full-url),
+                        // attempt to collapse to the last full URL part.
+                        const httpOccurrences = absolute.match(/https?:\/\//ig)
+                        if (httpOccurrences && httpOccurrences.length > 1) {
+                            // take substring starting from last 'http'
+                            const last = absolute.lastIndexOf('http')
+                            absolute = absolute.slice(last)
+                        }
+
+                        // validate
+                        try {
+                            // Will throw if invalid
+                            // eslint-disable-next-line no-new
+                            new URL(absolute)
+                            resolve(absolute)
+                        } catch (err) {
+                            // fallback: return empty string so UI doesn't attempt to render bad url
+                            resolve('')
+                        }
                         return
                     }
+
                     const errMsg = (resp && resp.message) || xhr.statusText || `Upload failed (${status})`
                     reject(new Error(errMsg))
                 }
@@ -170,13 +203,11 @@ export default function SellWithUsPage() {
         }
     }
 
-    // handlers that use uploadFileWithProgress and set form state accordingly
-    // showing  immediate blob preview, then replace with server URL when upload completes
+    // show immediate blob preview, then replace with server URL when upload completes
     async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
         const f = e.target.files?.[0]; if (!f) return
         setError(null)
 
-        // immediate preview
         const tmp = URL.createObjectURL(f)
         setForm(prev => ({ ...prev, logo: tmp }))
 
@@ -187,12 +218,11 @@ export default function SellWithUsPage() {
         } catch (err: any) {
             setError(err?.message || 'Upload failed')
         } finally {
-            // revoking the local blob (delay slightly so UI doesn't flicker)
-            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch (e) { } }, 1500)
+            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
         }
     }
 
-    // immediate blob preview then replace with server url; keeping upload progress in uploadProgress[key]
+    // immediate blob preview then replace with server url; keeps upload progress in uploadProgress[key]
     async function handleItemFile(e: React.ChangeEvent<HTMLInputElement>, itemId: string) {
         const f = e.target.files?.[0]; if (!f) return
         setError(null)
@@ -207,7 +237,7 @@ export default function SellWithUsPage() {
         } catch (err: any) {
             setError(err?.message || 'Upload failed')
         } finally {
-            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch (e) { } }, 1500)
+            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
         }
     }
 
@@ -240,7 +270,6 @@ export default function SellWithUsPage() {
         setSuccess(null)
 
         try {
-            // build payload
             const payload: any = {
                 application_type: form.application_type,
                 contact_name: form.contact_name,
@@ -255,8 +284,6 @@ export default function SellWithUsPage() {
             if (form.application_type === 'business') {
                 payload.business_name = form.business_name
             } else {
-                // one_time
-                // ensuring we send image_url even if empty string -server may ignore
                 payload.items = form.items.map(it => ({
                     title: it.title,
                     condition: it.condition,
@@ -267,7 +294,7 @@ export default function SellWithUsPage() {
                 }))
             }
 
-            const res = await fetch(`${base}/v1/seller-applications`, {
+            const res = await fetch(`${apiBase}/v1/seller-applications`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify(payload)
@@ -286,7 +313,6 @@ export default function SellWithUsPage() {
             }
 
             setSuccess('Application sent — we will review and contact you shortly.')
-            // reseting to initial state
             setForm({
                 application_type: 'business',
                 business_name: '',
@@ -307,7 +333,6 @@ export default function SellWithUsPage() {
         }
     }
 
-    // Small component for rendering per-key progress bar
     const ProgressBar = ({ pct }: { pct: number }) => (
         <div className="w-full bg-gray-100 rounded overflow-hidden h-2">
             <div style={{ width: `${pct}%` }} className="h-2 bg-indigo-600" />
@@ -367,7 +392,6 @@ export default function SellWithUsPage() {
                         </div>
                     </div>
 
-                    {/* One-time items list */}
                     {form.application_type === 'one_time' && (
                         <section className="space-y-4">
                             <h3 className="text-lg font-semibold">Items to sell (one-time)</h3>
@@ -421,11 +445,9 @@ export default function SellWithUsPage() {
                                                     {it.image && (
                                                         <div className="mt-2 h-20 w-full relative">
                                                             {String(it.image).startsWith('blob:') ? (
-                                                                // blob preview uses plain img
                                                                 // eslint-disable-next-line @next/next/no-img-element
                                                                 <img src={it.image} alt="item preview" className="h-20 object-contain" />
                                                             ) : (
-                                                                // remote preview uses next/image (requires next.config.js remotePatterns)
                                                                 <Image
                                                                     src={normalizeSrc(it.image)}
                                                                     alt={it.title || 'preview'}

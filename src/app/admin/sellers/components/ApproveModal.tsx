@@ -1,6 +1,4 @@
-//src/app/admin/seller-applications/components/ApproveModal.tsx
 'use client'
-
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -22,7 +20,8 @@ export default function ApproveModal({ applicationId, onSuccess, onClose }: Prop
         setLoading(true)
         try {
             const token = typeof window !== 'undefined' ? localStorage.getItem('ADMIN_TOKEN') : null
-            const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/v1/admin/seller-applications/${applicationId}/approve`, {
+            const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '')
+            const res = await fetch(`${apiBase}/v1/admin/seller-applications/${applicationId}/approve`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -37,7 +36,6 @@ export default function ApproveModal({ applicationId, onSuccess, onClose }: Prop
 
             if (onSuccess) onSuccess(body)
             if (onClose) onClose()
-            // optional: refresh the page or route
             router.refresh()
         } catch (err) {
             setError((err as Error).message)
