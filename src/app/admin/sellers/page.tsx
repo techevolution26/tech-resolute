@@ -3,30 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
 import ApproveModal from './components/ApproveModal'
 import SellerCard from './components/SellerCard'
-
-export type Item = {
-  title?: string
-  condition?: string
-  quantity?: number
-  estimated_price?: string | number
-  description?: string
-  image_url?: string | null
-  image?: string | null
-}
-
-export type Application = {
-  id: number
-  application_type?: 'business' | 'one_time'
-  business_name?: string
-  contact_name?: string
-  email?: string
-  phone?: string
-  website?: string
-  message?: string
-  status?: string
-  created_at?: string
-  items?: Item[]
-}
+import type { Application } from './types'
 
 export default function AdminSellerApplications() {
   const [apps, setApps] = useState<Application[]>([])

@@ -1,6 +1,7 @@
 'use client'
-import React from 'react'
-import type { Application, Item } from '../page' // local type import 
+import React, { useMemo, useState } from 'react'
+import type { Application, Item } from '../types'
+import ViewAttachmentsModal from './ViewAttachmentModal'
 
 type Props = {
     app: Application
@@ -8,7 +9,7 @@ type Props = {
 }
 
 /**
- * Resolving a storage URL returned by API:
+ * Resolve a storage URL returned by API:
  * - if already absolute return as-is (normalize /api/storage -> /storage)
  * - if relative prefix with storage base derived from envs
  */
@@ -29,7 +30,7 @@ function resolveStorageUrl(raw?: string | null): string | null {
     const path = s.startsWith('/') ? s : `/${s.replace(/^\/+/, '')}`
     const candidate = `${storageBase}${path}`.replace(/\/api\/storage/gi, '/storage')
 
-    // avoiding accidental duplicated protocol fragments
+    // avoid duplicated protocol fragments
     const httpMatches = candidate.match(/https?:\/\//ig)
     if (httpMatches && httpMatches.length > 1) {
         const lastIdx = candidate.lastIndexOf('http')
@@ -40,8 +41,32 @@ function resolveStorageUrl(raw?: string | null): string | null {
 }
 
 export default function SellerCard({ app, onReview }: Props) {
+    const [openImages, setOpenImages] = useState<string[] | null>(null)
+    const [startIndex, setStartIndex] = useState(0)
+
     const isOneTime = app.application_type === 'one_time'
     const title = app.business_name || (isOneTime ? 'One-time seller' : 'Seller')
+
+    // memoize items images resolution
+    const itemsWithImages = useMemo(() => {
+        return (app.items ?? []).map((it: Item) => {
+            const collected: string[] = []
+            // prefer explicit array
+            if (Array.isArray(it.image_urls) && it.image_urls.length) {
+                for (const u of it.image_urls) {
+                    const r = resolveStorageUrl(u)
+                    if (r) collected.push(r)
+                }
+            }
+            // fallback single fields
+            const single = it.image_url ?? it.image ?? null
+            if (single) {
+                const r = resolveStorageUrl(single)
+                if (r && !collected.includes(r)) collected.push(r)
+            }
+            return { item: it, images: collected }
+        })
+    }, [app.items])
 
     return (
         <div className="bg-white p-4 rounded-xl shadow-sm">
@@ -73,19 +98,24 @@ export default function SellerCard({ app, onReview }: Props) {
 
                     {app.message && <div className="mt-2 text-sm text-gray-700">{app.message}</div>}
 
-                    {isOneTime && Array.isArray(app.items) && app.items.length > 0 && (
+                    {isOneTime && itemsWithImages.length > 0 && (
                         <div className="mt-3">
                             <div className="text-sm font-medium mb-2">Items (one-time)</div>
                             <div className="grid gap-3">
-                                {app.items!.map((it: Item, i: number) => {
-                                    const imgUrl = resolveStorageUrl(it.image_url ?? it.image ?? null)
+                                {itemsWithImages.map(({ item: it, images }, i) => {
+                                    const first = images[0] ?? null
                                     return (
                                         <div key={i} className="flex gap-3 items-start p-2 rounded border">
                                             <div className="w-20 h-16 bg-gray-50 rounded overflow-hidden flex items-center justify-center">
-                                                {imgUrl ? (
-                                                    // using plain img in admin to avoid Next/Image remote config needs
+                                                {first ? (
+                                                    // admin uses plain img to avoid next/image remote config
                                                     // eslint-disable-next-line @next/next/no-img-element
-                                                    <img src={imgUrl} alt={it.title ?? `item-${i + 1}`} className="w-full h-full object-cover" />
+                                                    <img
+                                                        src={first}
+                                                        alt={it.title ?? `item-${i + 1}`}
+                                                        className="w-full h-full object-cover cursor-pointer"
+                                                        onClick={() => { setStartIndex(0); setOpenImages(images) }}
+                                                    />
                                                 ) : (
                                                     <div className="text-xs text-gray-400">No image</div>
                                                 )}
@@ -99,6 +129,17 @@ export default function SellerCard({ app, onReview }: Props) {
                                                     {it.estimated_price && <span> • Est: {it.estimated_price}</span>}
                                                 </div>
                                                 {it.description && <div className="text-xs text-gray-700 mt-1">{it.description}</div>}
+
+                                                {images.length > 1 && (
+                                                    <div className="mt-2">
+                                                        <button
+                                                            onClick={() => { setStartIndex(0); setOpenImages(images) }}
+                                                            className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700"
+                                                        >
+                                                            View attachments ({images.length})
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )
@@ -125,6 +166,14 @@ export default function SellerCard({ app, onReview }: Props) {
                     <div className="text-xs text-gray-400">{app.status ?? '—'}</div>
                 </div>
             </div>
+
+            {openImages && (
+                <ViewAttachmentsModal
+                    images={openImages}
+                    startIndex={startIndex}
+                    onClose={() => setOpenImages(null)}
+                />
+            )}
         </div>
     )
 }
