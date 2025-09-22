@@ -2,19 +2,19 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
-import { Category } from './types'
-import CategoryTree from './components/CategoryTree'
 import CategoryForm from './components/CategoryForm'
+import type { Category } from './types'
+
+type CategoryWithParent = Category & { parent_name?: string | null }
 
 export default function AdminCategoriesPage() {
-    const [categories, setCategories] = useState<Category[]>([])
+    const [categories, setCategories] = useState<CategoryWithParent[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
     const [editing, setEditing] = useState<Category | null>(null)
-    const [showCreate, setShowCreate] = useState(false)
+    const [showForm, setShowForm] = useState(false)
 
-    // load flat categories
-    async function load() {
+    async function loadCategories() {
         setLoading(true)
         setError(null)
         try {
@@ -26,8 +26,26 @@ export default function AdminCategoriesPage() {
             }
             const body = await res.json().catch(() => null)
             if (!res.ok) throw new Error(body?.message || res.statusText)
+
+            // normalize list (flat)
             const list: Category[] = Array.isArray(body) ? body : (body.data ?? [])
-            setCategories(list)
+
+            // build id -> name map
+            const idToName = new Map<number, string>()
+            for (const c of list) {
+                if (c && c.id != null) idToName.set(Number(c.id), String(c.name ?? ''))
+            }
+
+            // add parent_name for display convenience
+            const listWithParent: CategoryWithParent[] = list.map((c) => {
+                const pid = c.parent_id == null ? null : Number(c.parent_id)
+                return {
+                    ...c,
+                    parent_name: pid ? (idToName.get(pid) ?? null) : null
+                }
+            })
+
+            setCategories(listWithParent)
         } catch (err) {
             setError((err as Error).message)
         } finally {
@@ -35,48 +53,79 @@ export default function AdminCategoriesPage() {
         }
     }
 
-    useEffect(() => { load() }, [])
+    useEffect(() => { loadCategories() }, [])
 
-    function onSaved() {
-        setShowCreate(false)
+    function openCreate() {
         setEditing(null)
-        load()
+        setShowForm(true)
+    }
+
+    function openEdit(cat: Category) {
+        setEditing(cat)
+        setShowForm(true)
+    }
+
+    async function handleDelete(id: number) {
+        if (!confirm('Delete category? Children will remain but lose parent.')) return
+        try {
+            const res = await adminFetch(`/v1/admin/categories/${id}`, { method: 'DELETE' })
+            if (res.status === 401 || res.status === 403) {
+                clearAdminToken()
+                window.location.href = '/admin/login'
+                return
+            }
+            if (!res.ok) {
+                const b = await res.json().catch(() => null)
+                throw new Error(b?.message || res.statusText)
+            }
+            // refresh
+            await loadCategories()
+        } catch (err) {
+            alert('Delete failed: ' + (err as Error).message)
+        }
     }
 
     return (
         <div>
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-bold">Categories</h1>
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => { setEditing(null); setShowCreate(true) }}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
-                    >
-                        Create category
-                    </button>
+                <div>
+                    <button onClick={openCreate} className="px-4 py-2 bg-indigo-600 text-white rounded-lg">Create category</button>
                 </div>
             </div>
 
             {loading && <div>Loading…</div>}
             {error && <div className="text-red-600">Error: {error}</div>}
 
-            {!loading && !error && (
-                <div className="space-y-4">
-                    <CategoryTree
-                        categories={categories}
-                        onEdit={(c) => { setEditing(c); setShowCreate(true) }}
-                        onDeleted={() => load()}
-                        onMoved={() => load()}
-                    />
-                </div>
-            )}
+            {!loading && categories.length === 0 && <div className="text-gray-500">No categories yet.</div>}
 
-            {showCreate && (
+            <div className="mt-4 grid gap-3">
+                {categories.map(c => (
+                    <div key={c.id} className="flex items-center justify-between p-3 bg-white rounded shadow-sm">
+                        <div>
+                            <div className="font-medium">{c.name}</div>
+                            <div className="text-xs text-gray-500">
+                                slug: {c.slug} • parent: {c.parent_name ?? '—'}
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <button onClick={() => openEdit(c)} className="px-3 py-1 text-sm rounded bg-gray-100">Edit</button>
+                            <button onClick={() => handleDelete(c.id)} className="px-3 py-1 text-sm rounded bg-red-50 text-red-700">Delete</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {showForm && (
                 <CategoryForm
                     initial={editing ?? undefined}
-                    categoriesFlat={categories}
-                    onClose={() => { setShowCreate(false); setEditing(null) }}
-                    onSaved={onSaved}
+                    // pass the flat categories for parent select — NOTE: CategoryForm expects Category[] (parent_id etc)
+                    categoriesFlat={categories.map(({ parent_name, ...rest }) => rest)}
+                    onSaved={() => {
+                        // reload categories after create/edit
+                        loadCategories()
+                    }}
+                    onClose={() => setShowForm(false)}
                 />
             )}
         </div>
