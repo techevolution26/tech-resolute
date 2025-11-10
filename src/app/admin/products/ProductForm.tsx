@@ -3,6 +3,16 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
 import Image from 'next/image'
+import {
+    PhotoIcon,
+    DocumentTextIcon,
+    CurrencyDollarIcon,
+    TagIcon,
+    CubeIcon,
+    HashtagIcon,
+    ArrowLeftIcon,
+    CheckIcon
+} from '@heroicons/react/24/outline'
 
 export type ProductFormValues = {
     title: string
@@ -251,86 +261,196 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
     const isDataUri = (src?: string | null) => !!src && src.startsWith('data:')
 
     return (
-        <form onSubmit={submit} className="space-y-4 bg-white p-6 rounded-2xl shadow-sm">
-            <div>
-                <label className="block text-sm font-medium text-gray-700">Title</label>
-                <input value={values.title} onChange={e => onChangeField('title', e.target.value)} required className="mt-1 w-full p-2 border rounded" />
+        <div className="max-w-4xl mx-auto">
+            {/* Header */}
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                    {productId ? 'Edit Product' : 'Create New Product'}
+                </h1>
+                <p className="text-gray-600">
+                    {productId ? 'Update product details and information' : 'Add a new product to your store'}
+                </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Price</label>
-                    <input value={values.price} onChange={e => onChangeField('price', e.target.value)} required className="mt-1 w-full p-2 border rounded" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Condition</label>
-                    <select value={values.condition} onChange={e => onChangeField('condition', e.target.value)} className="mt-1 w-full p-2 border rounded">
-                        <option>New</option>
-                        <option>Refurbished</option>
-                        <option>Digital</option>
-                    </select>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Category</label>
-                    <select
-                        value={values.category_id ?? ''}
-                        onChange={e => onChangeField('category_id', e.target.value)}
-                        className="mt-1 w-full p-2 border rounded"
-                    >
-                        <option value="">— Select category —</option>
-                        {categories.map(c => (
-                            <option key={c.id} value={String(c.id)}>
-                                {Array(c.depth).fill('\u00A0\u00A0').join('')}{c.depth > 0 ? '↳ ' : ''}{c.name}
-                            </option>
-                        ))}
-                    </select>
+            <form onSubmit={submit} className="space-y-6 bg-white p-8 rounded-2xl shadow-sm border border-gray-200">
+                {/* Title Field */}
+                <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+                        Product Title
+                    </label>
+                    <input
+                        value={values.title}
+                        onChange={e => onChangeField('title', e.target.value)}
+                        required
+                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                        placeholder="Enter product title"
+                    />
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700">Stock</label>
-                    <input value={values.stock} onChange={e => onChangeField('stock', e.target.value)} className="mt-1 w-full p-2 border rounded" />
+                {/* Price & Condition */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <CurrencyDollarIcon className="w-4 h-4 text-amber-600" />
+                            Price
+                        </label>
+                        <div className="relative">
+                            <input
+                                value={values.price}
+                                onChange={e => onChangeField('price', e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 pl-10"
+                                placeholder="0.00"
+                            />
+                            <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
+                                {values.currency}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <TagIcon className="w-4 h-4 text-amber-600" />
+                            Condition
+                        </label>
+                        <select
+                            value={values.condition}
+                            onChange={e => onChangeField('condition', e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                        >
+                            <option>New</option>
+                            <option>Refurbished</option>
+                            <option>Digital</option>
+                        </select>
+                    </div>
                 </div>
-            </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700">Description</label>
-                <textarea value={values.description} onChange={e => onChangeField('description', e.target.value)} className="mt-1 w-full p-2 border rounded" rows={4} />
-            </div>
+                {/* Category & Stock */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <CubeIcon className="w-4 h-4 text-amber-600" />
+                            Category
+                        </label>
+                        <select
+                            value={values.category_id ?? ''}
+                            onChange={e => onChangeField('category_id', e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                        >
+                            <option value="">— Select category —</option>
+                            {categories.map(c => (
+                                <option key={c.id} value={String(c.id)}>
+                                    {Array(c.depth).fill('\u00A0\u00A0').join('')}{c.depth > 0 ? '↳ ' : ''}{c.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-            <div>
-                <label className="block text-sm font-medium text-gray-700">Image</label>
-                <div className="flex items-center gap-4 mt-2">
-                    <div className="w-32 h-20 bg-gray-100 rounded overflow-hidden flex items-center justify-center">
-                        {imagePreview ? (
-                            isDataUri(imagePreview) ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={imagePreview} alt="preview" className="object-cover w-full h-full" />
+                    <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                            <HashtagIcon className="w-4 h-4 text-amber-600" />
+                            Stock Quantity
+                        </label>
+                        <input
+                            value={values.stock}
+                            onChange={e => onChangeField('stock', e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                            placeholder="0"
+                        />
+                    </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+                        Description
+                    </label>
+                    <textarea
+                        value={values.description}
+                        onChange={e => onChangeField('description', e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                        rows={4}
+                        placeholder="Enter product description"
+                    />
+                </div>
+
+                {/* Image Upload */}
+                <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                        <PhotoIcon className="w-4 h-4 text-amber-600" />
+                        Product Image
+                    </label>
+                    <div className="flex items-start gap-6">
+                        <div className="w-40 h-32 bg-gradient-to-br from-amber-50 to-amber-100 rounded-2xl border-2 border-dashed border-amber-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                            {imagePreview ? (
+                                isDataUri(imagePreview) ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={imagePreview} alt="preview" className="object-cover w-full h-full" />
+                                ) : (
+                                    <Image src={imagePreview} alt="preview" width={160} height={128} className="object-cover w-full h-full" />
+                                )
                             ) : (
-                                <Image src={imagePreview} alt="preview" width={320} height={180} className="object-cover w-full h-full" />
-                            )
-                        ) : (
-                            <div className="text-xs text-gray-400">No image</div>
-                        )}
-                    </div>
+                                <div className="text-center text-amber-500">
+                                    <PhotoIcon className="w-8 h-8 mx-auto mb-2" />
+                                    <div className="text-xs font-medium">No image</div>
+                                </div>
+                            )}
+                        </div>
 
-                    <div>
-                        <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} />
-                        <div className="text-xs text-gray-500 mt-1">Max 2MB. Local preview available.</div>
+                        <div className="flex-1">
+                            <input
+                                ref={fileRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleFileChange}
+                                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                            />
+                            <div className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                                <span>Max 2MB. Supported formats: JPEG, PNG, WebP</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {error && <div className="text-red-600">{error}</div>}
+                {/* Error Message */}
+                {error && (
+                    <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 flex items-center gap-2">
+                        <div className="w-2 h-2 bg-rose-500 rounded-full"></div>
+                        {error}
+                    </div>
+                )}
 
-            <div className="flex justify-end gap-3">
-                <button type="button" onClick={() => window.history.back()} className="px-4 py-2 rounded bg-gray-100">Cancel</button>
-                <button type="submit" disabled={loading} className="px-4 py-2 rounded bg-indigo-600 text-white">
-                    {loading ? 'Saving…' : (productId ? 'Update product' : 'Create product')}
-                </button>
-            </div>
-        </form>
+                {/* Actions */}
+                <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+                    <button
+                        type="button"
+                        onClick={() => window.history.back()}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 font-semibold hover:from-gray-200 hover:to-gray-300 border border-gray-300 transition-all duration-200"
+                    >
+                        <ArrowLeftIcon className="w-4 h-4" />
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 text-white font-semibold hover:from-amber-700 hover:to-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+                    >
+                        {loading ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Saving...
+                            </>
+                        ) : (
+                            <>
+                                <CheckIcon className="w-4 h-4" />
+                                {productId ? 'Update Product' : 'Create Product'}
+                            </>
+                        )}
+                    </button>
+                </div>
+            </form>
+        </div>
     )
 }

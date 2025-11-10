@@ -1,7 +1,20 @@
+// src/app/admin/sellers/components/SellerCard.tsx
 'use client'
 import React, { useMemo, useState } from 'react'
 import type { Application, Item } from '../types'
 import ViewAttachmentsModal from './ViewAttachmentModal'
+import {
+    BuildingStorefrontIcon,
+    CubeIcon,
+    UserIcon,
+    EnvelopeIcon,
+    PhoneIcon,
+    GlobeAltIcon,
+    CalendarIcon,
+    EyeIcon,
+    CheckBadgeIcon,
+    ClockIcon
+} from '@heroicons/react/24/outline'
 
 type Props = {
     app: Application
@@ -68,76 +81,175 @@ export default function SellerCard({ app, onReview }: Props) {
         })
     }, [app.items])
 
+    const formatDate = (dateString?: string) => {
+        if (!dateString) return '—'
+        try {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+        } catch {
+            return dateString
+        }
+    }
+
     return (
-        <div className="bg-white p-4 rounded-xl shadow-sm">
-            <div className="flex items-start justify-between gap-4">
+        <div className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-gray-200 hover:border-amber-300 transition-all duration-300">
+            <div className="flex items-start justify-between gap-6">
                 <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                        <div className="text-lg font-semibold">{title}</div>
-                        {app.status === 'approved' ? (
-                            <div className="px-2 py-1 rounded-full bg-green-100 text-green-700 text-xs">Approved</div>
-                        ) : (
-                            <div className="px-2 py-1 rounded-full bg-yellow-50 text-yellow-800 text-xs">Pending</div>
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isOneTime
+                                ? 'bg-purple-100 text-purple-600'
+                                : 'bg-amber-100 text-amber-600'
+                                }`}>
+                                {isOneTime ? (
+                                    <CubeIcon className="w-6 h-6" />
+                                ) : (
+                                    <BuildingStorefrontIcon className="w-6 h-6" />
+                                )}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <div className="text-xl font-bold text-gray-900">{title}</div>
+                                    {app.status === 'approved' ? (
+                                        <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 text-green-800 border border-green-200 text-sm font-medium">
+                                            <CheckBadgeIcon className="w-4 h-4" />
+                                            Approved
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 text-sm font-medium">
+                                            <ClockIcon className="w-4 h-4" />
+                                            Pending Review
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                                    {app.contact_name && (
+                                        <div className="flex items-center gap-1">
+                                            <UserIcon className="w-4 h-4" />
+                                            {app.contact_name}
+                                        </div>
+                                    )}
+                                    {app.email && (
+                                        <div className="flex items-center gap-1">
+                                            <EnvelopeIcon className="w-4 h-4" />
+                                            {app.email}
+                                        </div>
+                                    )}
+                                    {app.phone && (
+                                        <div className="flex items-center gap-1">
+                                            <PhoneIcon className="w-4 h-4" />
+                                            {app.phone}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Additional Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {app.website && (
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <GlobeAltIcon className="w-4 h-4 text-gray-400" />
+                                <a
+                                    href={app.website}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-amber-600 hover:text-amber-700 font-medium"
+                                >
+                                    {app.website}
+                                </a>
+                            </div>
                         )}
+
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <CalendarIcon className="w-4 h-4 text-gray-400" />
+                            Applied: {formatDate(app.created_at)}
+                        </div>
                     </div>
 
-                    <div className="text-sm text-gray-600 mt-1">
-                        {app.contact_name ? `${app.contact_name} • ` : ''}
-                        {app.email ?? app.phone ?? '—'}
-                    </div>
-
-                    <div className="text-xs text-gray-400 mt-1">
-                        Applied: {app.created_at ? new Date(app.created_at).toLocaleString() : '—'}
-                    </div>
-
-                    {app.website && (
-                        <div className="text-xs text-gray-500 mt-2">
-                            Website: <a className="text-indigo-600" href={app.website} target="_blank" rel="noreferrer">{app.website}</a>
+                    {/* Message */}
+                    {app.message && (
+                        <div className="mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                            <div className="text-sm font-semibold text-gray-700 mb-2">Applicant Message</div>
+                            <div className="text-gray-600 text-sm">{app.message}</div>
                         </div>
                     )}
 
-                    {app.message && <div className="mt-2 text-sm text-gray-700">{app.message}</div>}
-
+                    {/* Items for One-Time Sellers */}
                     {isOneTime && itemsWithImages.length > 0 && (
-                        <div className="mt-3">
-                            <div className="text-sm font-medium mb-2">Items (one-time)</div>
-                            <div className="grid gap-3">
+                        <div className="mt-4">
+                            <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 mb-4">
+                                <CubeIcon className="w-5 h-5 text-amber-600" />
+                                Items for Sale ({itemsWithImages.length})
+                            </div>
+                            <div className="grid gap-4">
                                 {itemsWithImages.map(({ item: it, images }, i) => {
                                     const first = images[0] ?? null
                                     return (
-                                        <div key={i} className="flex gap-3 items-start p-2 rounded border">
-                                            <div className="w-20 h-16 bg-gray-50 rounded overflow-hidden flex items-center justify-center">
+                                        <div key={i} className="flex gap-4 items-start p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border border-gray-200">
+                                            {/* Item Image */}
+                                            <div className="w-24 h-20 bg-white rounded-xl border border-gray-300 overflow-hidden flex items-center justify-center flex-shrink-0">
                                                 {first ? (
-                                                    // admin uses plain img to avoid next/image remote config
                                                     // eslint-disable-next-line @next/next/no-img-element
                                                     <img
                                                         src={first}
                                                         alt={it.title ?? `item-${i + 1}`}
-                                                        className="w-full h-full object-cover cursor-pointer"
+                                                        className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
                                                         onClick={() => { setStartIndex(0); setOpenImages(images) }}
                                                     />
                                                 ) : (
-                                                    <div className="text-xs text-gray-400">No image</div>
+                                                    <div className="text-xs text-gray-400 text-center px-2">No image</div>
                                                 )}
                                             </div>
 
-                                            <div className="flex-1">
-                                                <div className="font-medium text-sm">{it.title || 'Untitled item'}</div>
-                                                <div className="text-xs text-gray-600 mt-1">
-                                                    {it.condition && <span>{it.condition}</span>}
-                                                    {it.quantity != null && <span> • Qty: {it.quantity}</span>}
-                                                    {it.estimated_price && <span> • Est: {it.estimated_price}</span>}
+                                            {/* Item Details */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="font-semibold text-gray-900 text-sm mb-2">
+                                                    {it.title || 'Untitled item'}
                                                 </div>
-                                                {it.description && <div className="text-xs text-gray-700 mt-1">{it.description}</div>}
 
-                                                {images.length > 1 && (
-                                                    <div className="mt-2">
-                                                        <button
-                                                            onClick={() => { setStartIndex(0); setOpenImages(images) }}
-                                                            className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700"
-                                                        >
-                                                            View attachments ({images.length})
-                                                        </button>
+                                                <div className="flex flex-wrap gap-3 text-xs text-gray-600 mb-2">
+                                                    {it.condition && (
+                                                        <span className="px-2 py-1 bg-amber-50 text-amber-700 rounded-lg border border-amber-200 font-medium">
+                                                            {it.condition}
+                                                        </span>
+                                                    )}
+                                                    {it.quantity != null && (
+                                                        <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-lg border border-gray-200">
+                                                            Qty: {it.quantity}
+                                                        </span>
+                                                    )}
+                                                    {it.estimated_price && (
+                                                        <span className="px-2 py-1 bg-green-50 text-green-700 rounded-lg border border-green-200 font-medium">
+                                                            Est: {it.estimated_price}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                {it.description && (
+                                                    <div className="text-sm text-gray-700 mb-3">
+                                                        {it.description}
+                                                    </div>
+                                                )}
+
+                                                {/* Image Gallery */}
+                                                {images.length > 0 && (
+                                                    <div className="flex items-center gap-2">
+                                                        {images.length > 1 && (
+                                                            <button
+                                                                onClick={() => { setStartIndex(0); setOpenImages(images) }}
+                                                                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 text-amber-700 font-medium hover:from-amber-100 hover:to-amber-200 border border-amber-300 transition-all duration-200 text-xs"
+                                                            >
+                                                                <EyeIcon className="w-3 h-3" />
+                                                                View {images.length} {images.length === 1 ? 'image' : 'images'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
@@ -149,24 +261,28 @@ export default function SellerCard({ app, onReview }: Props) {
                     )}
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                    <div>
-                        {app.status === 'approved' ? (
-                            <div className="px-3 py-1 rounded-full bg-green-50 text-green-700 text-sm">Approved</div>
-                        ) : (
-                            <button
-                                onClick={() => onReview(app.id)}
-                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm"
-                            >
-                                Review & Approve
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="text-xs text-gray-400">{app.status ?? '—'}</div>
+                {/* Action Buttons */}
+                <div className="flex flex-col items-end gap-3 flex-shrink-0">
+                    {app.status === 'approved' ? (
+                        <div className="text-center">
+                            <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-2">
+                                <CheckBadgeIcon className="w-8 h-8 text-green-600" />
+                            </div>
+                            <div className="text-sm font-semibold text-green-700">Approved</div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => onReview(app.id)}
+                            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 text-white font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-200 shadow-sm"
+                        >
+                            <CheckBadgeIcon className="w-5 h-5" />
+                            Review & Approve
+                        </button>
+                    )}
                 </div>
             </div>
 
+            {/* Image Modal */}
             {openImages && (
                 <ViewAttachmentsModal
                     images={openImages}

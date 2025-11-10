@@ -29,7 +29,7 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
         const el = document.createElement('div')
         el.id = id
         el.textContent = msg
-        el.className = 'fixed bottom-6 right-6 bg-indigo-600 text-white px-4 py-2 rounded shadow-lg z-50'
+        el.className = 'fixed bottom-6 right-6 bg-gradient-to-br from-green-600 to-green-700 text-white px-6 py-3 rounded-2xl shadow-lg z-50 font-medium border border-green-500'
         document.body.appendChild(el)
         setTimeout(() => {
             const e = document.getElementById(id)
@@ -46,6 +46,37 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
         return null
     }
 
+    // Enhanced validation function
+    function validateForm(): boolean {
+        const errors: Record<string, string[]> = {}
+
+        if (!name.trim()) {
+            errors.customer_name = ['Name is required']
+        }
+
+        if (!email.trim()) {
+            errors.customer_email = ['Email is required']
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            errors.customer_email = ['Please enter a valid email address']
+        }
+
+        if (!phone.trim()) {
+            errors.customer_phone = ['Phone number is required']
+        }
+
+        if (requireShipping && !shippingAddress.trim()) {
+            errors.shipping_address = ['Shipping address is required for delivery orders']
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors)
+            setError('Please fix the errors above')
+            return false
+        }
+
+        return true
+    }
+
     async function createOrder() {
         setError(null)
         setFieldErrors({})
@@ -58,8 +89,9 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
             setError('Quantity must be at least 1.')
             return
         }
-        if (requireShipping && shippingAddress.trim().length === 0) {
-            setError('Shipping address is required.')
+
+        // Enhanced client-side validation
+        if (!validateForm()) {
             return
         }
 
@@ -75,11 +107,11 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
             const payload = {
                 product_id: productId,
                 quantity: qty,
-                customer_name: name || null,
-                customer_email: email || null,
-                customer_phone: phone || null,
-                shipping_address: shippingAddress || null,
-                notes: notes || null,
+                customer_name: name.trim(),
+                customer_email: email.trim(),
+                customer_phone: phone.trim(),
+                shipping_address: shippingAddress.trim() || null,
+                notes: notes.trim() || null,
             }
 
             const res = await fetch(`${apiBase}/v1/orders`, {
@@ -93,9 +125,9 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
             if (!res.ok) {
                 if (res.status === 422 && body && typeof body === 'object' && (body as Record<string, unknown>)['errors']) {
                     setFieldErrors((body as Record<string, unknown>)['errors'] as Record<string, string[]>)
-                    setError(getBodyMessage(body) ?? 'Validation failed')
+                    setError(getBodyMessage(body) ?? 'Please check your information and try again')
                 } else {
-                    setError(getBodyMessage(body) ?? res.statusText ?? 'Order failed')
+                    setError(getBodyMessage(body) ?? res.statusText ?? 'Order failed. Please try again.')
                 }
 
                 if (paymentWin) {
@@ -113,17 +145,13 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
 
             // optimistic success / toast / analytics
             setSuccess({ id: orderId, checkout_url: checkoutUrl })
-            showToast(`Order created — #${orderId}`)
+            showToast(`🎉 Order #${orderId} created successfully!`)
 
             // analytics push (safe)
             try {
                 const w = window as unknown as { dataLayer?: unknown[] }
                 if (Array.isArray(w.dataLayer)) {
                     ; (w.dataLayer as unknown[]).push({ event: 'order_created', orderId })
-                } else {
-                    // fallback dev log
-                    // eslint-disable-next-line no-console
-                    console.log('ANALYTICS order_created', { orderId })
                 }
             } catch {
                 // ignore analytics errors
@@ -142,7 +170,7 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
             }
         } catch (err: unknown) {
             const e = err instanceof Error ? err : { message: String(err) }
-            setError((e as Error).message || 'Network error')
+            setError((e as Error).message || 'Network error. Please check your connection and try again.')
         } finally {
             setLoading(false)
         }
@@ -150,109 +178,291 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
 
     if (success) {
         return (
-            <div className="mt-4">
-                <div className="text-sm text-green-700 font-medium">Order created — #{success.id}</div>
+            <div className="mt-6 p-6 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-xl bg-green-500 text-white flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-green-900">Order Confirmed!</h3>
+                        <p className="text-green-700">Your order has been created successfully.</p>
+                    </div>
+                </div>
+
+                <div className="bg-white p-4 rounded-xl border border-green-200 mb-4">
+                    <div className="text-sm text-gray-600">Order ID</div>
+                    <div className="text-xl font-bold text-gray-900">#{success.id}</div>
+                </div>
+
                 {success.checkout_url ? (
-                    <a href={success.checkout_url} target="_blank" rel="noreferrer" className="mt-2 inline-block px-4 py-2 rounded bg-indigo-600 text-white">
-                        Continue to payment
+                    <a
+                        href={success.checkout_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-full text-center px-6 py-4 rounded-xl bg-gradient-to-br from-green-600 to-green-700 text-white font-semibold hover:from-green-700 hover:to-green-800 transition-all duration-200 shadow-sm border border-green-500"
+                    >
+                        Continue to Payment
                     </a>
                 ) : (
-                    <div className="mt-2 text-sm text-gray-700">We will contact you shortly to complete the order.</div>
+                    <div className="text-center p-4 bg-amber-50 rounded-xl border border-amber-200">
+                        <div className="text-amber-800 font-medium mb-2">Next Steps</div>
+                        <div className="text-amber-700 text-sm">We will contact you shortly to complete your order and arrange payment.</div>
+                    </div>
                 )}
             </div>
         )
     }
 
     return (
-        <div className="mt-4">
-            <div className="grid grid-cols-1 gap-3">
-                <label className="text-sm font-medium">Quantity</label>
-                <div className="flex items-center gap-3">
-                    <div className="flex items-center border rounded">
-                        <button type="button" onClick={() => setQty(q => Math.max(1, q - 1))} className="px-3 py-2">−</button>
-                        <input
-                            type="number"
-                            value={qty}
-                            onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
-                            className="w-20 text-center p-2"
-                        />
-                        <button type="button" onClick={() => setQty(q => q + 1)} className="px-3 py-2">+</button>
-                    </div>
-                    <div className="text-sm text-gray-600">Unit: {productPrice ?? '—'}</div>
-
-                    <div className="ml-auto flex items-center gap-2">
-                        <button
-                            onClick={() => setShowForm(s => !s)}
-                            className="px-4 py-2 rounded-xl bg-indigo-600 text-white"
-                            aria-expanded={showForm}
-                        >
-                            {showForm ? 'Hide order form' : 'Buy / Request'}
-                        </button>
-                    </div>
-                </div>
-
-                <div className="text-xs text-gray-600 bg-gray-50 p-3 rounded">
-                    <strong className="text-sm text-gray-800">Shipping & response info</strong>
-                    <p className="mt-1">Provide a name, email or phone so we can contact you about payment and delivery. Shipping address is required for delivery orders.</p>
-                    <label className="inline-flex items-center gap-2 mt-2">
-                        <input type="checkbox" checked={requireShipping} onChange={() => setRequireShipping(r => !r)} />
-                        <span className="text-xs text-gray-700">Require shipping address for this order</span>
-                    </label>
-                </div>
-
-                {showForm && (
-                    <div className="mt-3 bg-white p-4 rounded-lg border">
-                        <div>
-                            <label className="block text-xs text-gray-600">Your name</label>
-                            <input value={name} onChange={e => setName(e.target.value)} className="w-full p-2 border rounded" />
-                            {fieldErrors.customer_name && <div className="text-red-600 text-xs mt-1">{fieldErrors.customer_name[0]}</div>}
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                            <div>
-                                <label className="block text-xs text-gray-600">Email</label>
-                                <input value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border rounded" />
-                                {fieldErrors.customer_email && <div className="text-red-600 text-xs mt-1">{fieldErrors.customer_email[0]}</div>}
-                            </div>
-                            <div>
-                                <label className="block text-xs text-gray-600">Phone</label>
-                                <input value={phone} onChange={e => setPhone(e.target.value)} className="w-full p-2 border rounded" />
-                                {fieldErrors.customer_phone && <div className="text-red-600 text-xs mt-1">{fieldErrors.customer_phone[0]}</div>}
-                            </div>
-                        </div>
-
-                        <div className="mt-3">
-                            <label className="block text-xs text-gray-600">
-                                Shipping address {requireShipping ? <span className="text-red-600">*</span> : <span className="text-gray-400">(optional)</span>}
-                            </label>
-                            <textarea
-                                value={shippingAddress}
-                                onChange={e => setShippingAddress(e.target.value)}
-                                rows={3}
-                                className="w-full p-2 border rounded"
-                                required={requireShipping}
+        <div className="mt-6">
+            <div className="space-y-4">
+                {/* Quantity Selector */}
+                <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <label className="block text-sm font-semibold text-gray-800 mb-3">Quantity</label>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center border border-gray-300 rounded-xl overflow-hidden">
+                            <button
+                                type="button"
+                                onClick={() => setQty(q => Math.max(1, q - 1))}
+                                className="px-4 py-3 hover:bg-gray-50 transition-colors duration-200 text-gray-600 hover:text-gray-800"
+                                disabled={qty <= 1}
+                            >
+                                −
+                            </button>
+                            <input
+                                type="number"
+                                value={qty}
+                                onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+                                className="w-20 text-center p-3 border-x border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                min="1"
                             />
-                            {fieldErrors.shipping_address && <div className="text-red-600 text-xs mt-1">{fieldErrors.shipping_address[0]}</div>}
+                            <button
+                                type="button"
+                                onClick={() => setQty(q => q + 1)}
+                                className="px-4 py-3 hover:bg-gray-50 transition-colors duration-200 text-gray-600 hover:text-gray-800"
+                            >
+                                +
+                            </button>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                            Unit price:KES  <span className="font-semibold text-gray-800">{productPrice ?? '—'}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Shipping Info */}
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-2xl border border-blue-200">
+                    <div className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center flex-shrink-0 mt-0.5">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <div className="flex-1">
+                            <div className="text-sm font-semibold text-blue-800 mb-2">Shipping & Contact Information</div>
+                            <p className="text-sm text-blue-700 mb-3">
+                                Provide your contact details so we can reach you about payment and delivery.
+                                Shipping address is required for physical deliveries.
+                            </p>
+                            <label className="inline-flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    checked={requireShipping}
+                                    onChange={() => setRequireShipping(r => !r)}
+                                    className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                <span className="text-sm text-blue-800 font-medium">This order requires shipping</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Order Button */}
+                <button
+                    onClick={() => setShowForm(s => !s)}
+                    className="w-full px-6 py-4 rounded-2xl bg-gradient-to-br from-amber-600 to-amber-700 text-white font-semibold hover:from-amber-700 hover:to-amber-800 transition-all duration-200 shadow-sm border border-amber-500 flex items-center justify-center gap-2"
+                    aria-expanded={showForm}
+                >
+                    {showForm ? (
+                        <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                            </svg>
+                            Hide Order Form
+                        </>
+                    ) : (
+                        <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            Buy / Request Quote
+                        </>
+                    )}
+                </button>
+
+                {/* Order Form */}
+                {showForm && (
+                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm space-y-6">
+                        <div className="grid grid-cols-1 gap-6">
+                            {/* Name Field */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-800 mb-2">
+                                    Your Name <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    value={name}
+                                    onChange={e => setName(e.target.value)}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 ${fieldErrors.customer_name ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                        }`}
+                                    placeholder="Enter your full name"
+                                />
+                                {fieldErrors.customer_name && (
+                                    <div className="flex items-center gap-1 text-red-600 text-sm mt-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {fieldErrors.customer_name[0]}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Email & Phone */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                                        Email Address <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 ${fieldErrors.customer_email ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                            }`}
+                                        placeholder="your@email.com"
+                                    />
+                                    {fieldErrors.customer_email && (
+                                        <div className="flex items-center gap-1 text-red-600 text-sm mt-2">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {fieldErrors.customer_email[0]}
+                                        </div>
+                                    )}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-800 mb-2">
+                                        Phone Number <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        value={phone}
+                                        onChange={e => setPhone(e.target.value)}
+                                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 ${fieldErrors.customer_phone ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                            }`}
+                                        placeholder="+1 (555) 123-4567"
+                                    />
+                                    {fieldErrors.customer_phone && (
+                                        <div className="flex items-center gap-1 text-red-600 text-sm mt-2">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            {fieldErrors.customer_phone[0]}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Shipping Address */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-800 mb-2">
+                                    Shipping Address {requireShipping ? <span className="text-red-500">*</span> : <span className="text-gray-500">(optional)</span>}
+                                </label>
+                                <textarea
+                                    value={shippingAddress}
+                                    onChange={e => setShippingAddress(e.target.value)}
+                                    rows={3}
+                                    className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200 ${fieldErrors.shipping_address ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                                        }`}
+                                    placeholder={requireShipping ? "Enter your complete shipping address..." : "Shipping address (if required)..."}
+                                />
+                                {fieldErrors.shipping_address && (
+                                    <div className="flex items-center gap-1 text-red-600 text-sm mt-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {fieldErrors.shipping_address[0]}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Notes */}
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-800 mb-2">
+                                    Order Notes <span className="text-gray-500">(optional)</span>
+                                </label>
+                                <textarea
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    rows={3}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                    placeholder="Any special instructions or requirements..."
+                                />
+                                {fieldErrors.notes && (
+                                    <div className="flex items-center gap-1 text-red-600 text-sm mt-2">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {fieldErrors.notes[0]}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
-                        <div className="mt-3">
-                            <label className="block text-xs text-gray-600">Notes (optional)</label>
-                            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full p-2 border rounded" />
-                            {fieldErrors.notes && <div className="text-red-600 text-xs mt-1">{fieldErrors.notes[0]}</div>}
-                        </div>
+                        {/* Error Display */}
+                        {error && (
+                            <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3">
+                                <div className="w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center flex-shrink-0">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </div>
+                                <div className="text-red-800 font-medium">{error}</div>
+                            </div>
+                        )}
 
-                        {error && <div className="text-red-600 text-sm mt-2">{error}</div>}
-
-                        <div className="mt-3 flex gap-3">
-                            <button onClick={createOrder} disabled={loading} className="px-4 py-3 rounded-xl bg-indigo-600 text-white">
-                                {loading ? 'Processing…' : `Proceed & pay`}
+                        {/* Action Buttons */}
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                            <button
+                                onClick={createOrder}
+                                disabled={loading}
+                                className="flex-1 px-6 py-4 rounded-xl bg-gradient-to-br from-green-600 to-green-700 text-white font-semibold hover:from-green-700 hover:to-green-800 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed transition-all duration-200 shadow-sm border border-green-500 flex items-center justify-center gap-2"
+                            >
+                                {loading ? (
+                                    <>
+                                        <svg className="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                        Processing Order...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Proceed & Pay
+                                    </>
+                                )}
                             </button>
 
                             <a
                                 href={`mailto:techevo404@gmail.com?subject=${encodeURIComponent('Purchase enquiry: ' + productTitle)}&body=${encodeURIComponent(`Hi,\n\nI want to buy ${productTitle} (quantity: ${qty}). Please advise next steps.\n\nThanks`)}`}
-                                className="px-4 py-3 rounded-xl border text-sm text-gray-700 inline-flex items-center justify-center"
+                                className="px-6 py-4 rounded-xl border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-all duration-200 inline-flex items-center justify-center gap-2"
                             >
-                                Email seller
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                Email Seller
                             </a>
                         </div>
                     </div>

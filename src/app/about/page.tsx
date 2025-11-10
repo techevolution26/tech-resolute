@@ -108,6 +108,12 @@ export default function AboutPage() {
                                 name: "Samuel Ziro",
                                 role: "Operations",
                                 color: "bg-green-100 text-green-800"
+                            },
+                            {
+                                initials: "VC",
+                                name: "Victor Chitole",
+                                role: "Marketing",
+                                color: "bg-pink-100 text-pink-800"
                             }
                         ].map((member, index) => (
                             <div key={index} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 flex flex-col items-center text-center">

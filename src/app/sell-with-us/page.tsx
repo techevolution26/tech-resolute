@@ -3,6 +3,20 @@
 import React, { useState } from 'react'
 import Image from 'next/image'
 import { normalizeSrc } from '../../lib/normalizeSrc'
+import {
+    BuildingStorefrontIcon,
+    CubeIcon,
+    UserIcon,
+    EnvelopeIcon,
+    PhoneIcon,
+    GlobeAltIcon,
+    PhotoIcon,
+    TrashIcon,
+    PlusIcon,
+    DocumentTextIcon,
+    CheckIcon,
+    ExclamationTriangleIcon
+} from '@heroicons/react/24/outline'
 
 type ItemRow = {
     id: string
@@ -355,126 +369,291 @@ export default function SellWithUsPage() {
     }
 
     const ProgressBar = ({ pct }: { pct: number }) => (
-        <div className="w-full bg-gray-100 rounded overflow-hidden h-2">
-            <div style={{ width: `${pct}%` }} className="h-2 bg-indigo-600" />
+        <div className="w-full bg-gray-100 rounded-xl overflow-hidden h-2">
+            <div style={{ width: `${pct}%` }} className="h-2 bg-gradient-to-r from-amber-600 to-amber-700 transition-all duration-300" />
         </div>
     )
 
     return (
-        <div className="min-h-screen bg-white py-12">
-            <div className="max-w-4xl mx-auto px-6">
-                <h1 className="text-3xl font-bold mb-2">Sell on Tech Mall</h1>
-                <p className="text-gray-600 mb-6">Choose whether you’re applying to be a recurring seller or selling one-time items to us.</p>
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-12">
+            <button
+                onClick={() => window.history.back()}
+                className="absolute top-6 left-6 text-gray-600 hover:text-gray-900 flex items-center gap-2 font-medium"
+            >
+                ← Back
+            </button>
 
-                <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-sm space-y-6">
-                    <div>
-                        <label className="text-sm font-medium block mb-2">I want to:</label>
-                        <div className="flex gap-4">
-                            <label className={`px-4 py-2 rounded cursor-pointer ${form.application_type === 'business' ? 'bg-indigo-50 border border-indigo-200' : 'bg-white border'}`}>
-                                <input type="radio" name="app_type" checked={form.application_type === 'business'} onChange={() => updateField('application_type', 'business')} className="mr-2" />
-                                Apply as a business / long-term seller
+            <div className="max-w-4xl mx-auto px-6">
+                {/* Header */}
+                <div className="text-center mb-12">
+                    <h1 className="text-4xl font-bold text-gray-900 mb-4">Join Our Seller Community</h1>
+                    <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+                        Become a trusted seller on Tech Mall and reach thousands of customers
+                    </p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-200 space-y-8">
+                    {/* Application Type Selection */}
+                    <div className="space-y-4">
+                        <label className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                            <BuildingStorefrontIcon className="w-5 h-5 text-amber-600" />
+                            I want to:
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <label className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${form.application_type === 'business'
+                                ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-amber-100 shadow-sm'
+                                : 'border-gray-200 bg-white hover:border-amber-300'
+                                }`}>
+                                <input
+                                    type="radio"
+                                    name="app_type"
+                                    checked={form.application_type === 'business'}
+                                    onChange={() => updateField('application_type', 'business')}
+                                    className="hidden"
+                                />
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${form.application_type === 'business'
+                                        ? 'bg-amber-600 text-white'
+                                        : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                        <BuildingStorefrontIcon className="w-5 h-5" />
+                                    </div>
+                                    <div className="font-semibold text-gray-900">Business Seller</div>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Apply as a business or long-term seller with recurring inventory
+                                </div>
                             </label>
 
-                            <label className={`px-4 py-2 rounded cursor-pointer ${form.application_type === 'one_time' ? 'bg-indigo-50 border border-indigo-200' : 'bg-white border'}`}>
-                                <input type="radio" name="app_type" checked={form.application_type === 'one_time'} onChange={() => updateField('application_type', 'one_time')} className="mr-2" />
-                                Sell one-time items (single sale / buyback)
+                            <label className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 ${form.application_type === 'one_time'
+                                ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-amber-100 shadow-sm'
+                                : 'border-gray-200 bg-white hover:border-amber-300'
+                                }`}>
+                                <input
+                                    type="radio"
+                                    name="app_type"
+                                    checked={form.application_type === 'one_time'}
+                                    onChange={() => updateField('application_type', 'one_time')}
+                                    className="hidden"
+                                />
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${form.application_type === 'one_time'
+                                        ? 'bg-amber-600 text-white'
+                                        : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                        <CubeIcon className="w-5 h-5" />
+                                    </div>
+                                    <div className="font-semibold text-gray-900">One-Time Seller</div>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    Sell individual items (single sale or buyback opportunity)
+                                </div>
                             </label>
                         </div>
                     </div>
 
+                    {/* Business Name (for Business Seller) */}
                     {form.application_type === 'business' && (
-                        <div>
-                            <label className="text-sm font-medium">Business name</label>
-                            <input value={form.business_name} onChange={e => updateField('business_name', e.target.value)} required className="w-full mt-2 p-3 border rounded" />
-                            {errors.business_name && <div className="text-red-600 text-sm mt-1">{firstError({ business_name: errors.business_name })}</div>}
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <BuildingStorefrontIcon className="w-4 h-4 text-amber-600" />
+                                Business Name
+                            </label>
+                            <input
+                                value={form.business_name}
+                                onChange={e => updateField('business_name', e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                placeholder="Enter your business name"
+                            />
+                            {errors.business_name && (
+                                <div className="text-rose-600 text-sm flex items-center gap-2">
+                                    <ExclamationTriangleIcon className="w-4 h-4" />
+                                    {firstError({ business_name: errors.business_name })}
+                                </div>
+                            )}
                         </div>
                     )}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm font-medium">Contact name</label>
-                            <input value={form.contact_name} onChange={e => updateField('contact_name', e.target.value)} required className="w-full mt-2 p-3 border rounded" />
+                    {/* Contact Information */}
+                    <div className="space-y-6">
+                        <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                            <UserIcon className="w-5 h-5 text-amber-600" />
+                            Contact Information
+                        </h3>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                    <UserIcon className="w-4 h-4 text-amber-600" />
+                                    Contact Name
+                                </label>
+                                <input
+                                    value={form.contact_name}
+                                    onChange={e => updateField('contact_name', e.target.value)}
+                                    required
+                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                    placeholder="Your full name"
+                                />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                    <EnvelopeIcon className="w-4 h-4 text-amber-600" />
+                                    Contact Email
+                                </label>
+                                <input
+                                    type="email"
+                                    value={form.email}
+                                    onChange={e => updateField('email', e.target.value)}
+                                    required
+                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                    placeholder="your.email@example.com"
+                                />
+                                {errors.email && (
+                                    <div className="text-rose-600 text-sm flex items-center gap-2">
+                                        <ExclamationTriangleIcon className="w-4 h-4" />
+                                        {firstError({ email: errors.email })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium">Contact email</label>
-                            <input type="email" value={form.email} onChange={e => updateField('email', e.target.value)} required className="w-full mt-2 p-3 border rounded" />
-                            {errors.email && <div className="text-red-600 text-sm mt-1">{firstError({ email: errors.email })}</div>}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                    <PhoneIcon className="w-4 h-4 text-amber-600" />
+                                    Phone Number
+                                </label>
+                                <input
+                                    value={form.phone}
+                                    onChange={e => updateField('phone', e.target.value)}
+                                    required
+                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                    placeholder="+254 (123)-4567"
+                                />
+                            </div>
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                    <GlobeAltIcon className="w-4 h-4 text-amber-600" />
+                                    Website (Optional)
+                                </label>
+                                <input
+                                    value={form.website}
+                                    onChange={e => updateField('website', e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                    placeholder="https://yourwebsite.com"
+                                />
+                            </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="text-sm font-medium">Phone</label>
-                            <input value={form.phone} onChange={e => updateField('phone', e.target.value)} required className="w-full mt-2 p-3 border rounded" />
-                        </div>
-                        <div>
-                            <label className="text-sm font-medium">Website (optional)</label>
-                            <input value={form.website} onChange={e => updateField('website', e.target.value)} className="w-full mt-2 p-3 border rounded" />
-                        </div>
-                    </div>
-
+                    {/* Items Section (for One-Time Seller) */}
                     {form.application_type === 'one_time' && (
-                        <section className="space-y-4">
-                            <h3 className="text-lg font-semibold">Items to sell (one-time)</h3>
+                        <section className="space-y-6">
+                            <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                                <CubeIcon className="w-5 h-5 text-amber-600" />
+                                Items to Sell
+                            </h3>
+
                             {form.items.map((it, idx) => {
                                 const key = `item-${it.id}`
                                 const prog = uploadProgress[key] ?? 0
                                 return (
-                                    <div key={it.id} className="bg-gray-50 p-4 rounded-md space-y-2 border">
+                                    <div key={it.id} className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200 space-y-4">
                                         <div className="flex justify-between items-center">
-                                            <div className="font-medium">Item #{idx + 1}</div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center text-sm font-bold">
+                                                    {idx + 1}
+                                                </div>
+                                                <div className="font-semibold text-gray-900">Item #{idx + 1}</div>
+                                            </div>
                                             <div className="flex gap-2">
-                                                {form.items.length > 1 && <button type="button" onClick={() => removeItem(it.id)} className="text-red-600 text-sm">Remove</button>}
+                                                {form.items.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeItem(it.id)}
+                                                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 text-rose-700 font-medium hover:bg-rose-100 border border-rose-200 transition-all duration-200"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                        Remove
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <div>
-                                                <label className="text-sm">Title</label>
-                                                <input value={it.title} onChange={e => updateItem(it.id, { title: e.target.value })} required className="mt-1 w-full p-2 border rounded" />
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold text-gray-700">Title</label>
+                                                <input
+                                                    value={it.title}
+                                                    onChange={e => updateItem(it.id, { title: e.target.value })}
+                                                    required
+                                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                                    placeholder="Product title"
+                                                />
                                             </div>
-                                            <div>
-                                                <label className="text-sm">Condition</label>
-                                                <select value={it.condition} onChange={e => updateItem(it.id, { condition: e.target.value })} className="mt-1 w-full p-2 border rounded">
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold text-gray-700">Condition</label>
+                                                <select
+                                                    value={it.condition}
+                                                    onChange={e => updateItem(it.id, { condition: e.target.value })}
+                                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                                >
                                                     <option>Used</option>
                                                     <option>Refurbished</option>
                                                     <option>New</option>
                                                     <option>Parts only</option>
                                                 </select>
                                             </div>
-                                            <div>
-                                                <label className="text-sm">Quantity</label>
-                                                <input type="number" min={1} value={it.quantity} onChange={e => updateItem(it.id, { quantity: Number(e.target.value) })} className="mt-1 w-full p-2 border rounded" />
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold text-gray-700">Quantity</label>
+                                                <input
+                                                    type="number"
+                                                    min={1}
+                                                    value={it.quantity}
+                                                    onChange={e => updateItem(it.id, { quantity: Number(e.target.value) })}
+                                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                                />
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="text-sm">Estimated price (per item)</label>
-                                                <input value={it.estimated_price} onChange={e => updateItem(it.id, { estimated_price: e.target.value })} className="mt-1 w-full p-2 border rounded" />
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold text-gray-700">Estimated Price (per item)</label>
+                                                <input
+                                                    value={it.estimated_price}
+                                                    onChange={e => updateItem(it.id, { estimated_price: e.target.value })}
+                                                    className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                                    placeholder="0.00"
+                                                />
                                             </div>
-                                            <div>
-                                                <label className="text-sm">Image (optional)</label>
-                                                <input type="file" accept="image/*" onChange={e => handleItemFile(e, it.id)} className="mt-1" />
+                                            <div className="space-y-3">
+                                                <label className="text-sm font-semibold text-gray-700">Product Image (Optional)</label>
+                                                <input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={e => handleItemFile(e, it.id)}
+                                                    className="w-full p-3 border border-gray-300 rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                                                />
                                                 <div className="mt-2">
                                                     {prog > 0 && prog < 100 && (
-                                                        <div className="mb-2">
-                                                            <div className="text-xs text-gray-600 mb-1">Uploading: {prog}%</div>
+                                                        <div className="mb-3">
+                                                            <div className="text-xs text-gray-600 mb-2">Uploading: {prog}%</div>
                                                             <ProgressBar pct={prog} />
                                                         </div>
                                                     )}
                                                     {it.image && (
-                                                        <div className="mt-2 h-20 w-full relative">
+                                                        <div className="mt-3 h-32 w-full relative bg-white rounded-xl border border-gray-200 p-2">
                                                             {String(it.image).startsWith('blob:') ? (
                                                                 // eslint-disable-next-line @next/next/no-img-element
-                                                                <img src={it.image} alt="item preview" className="h-20 object-contain" />
+                                                                <img src={it.image} alt="item preview" className="h-28 object-contain mx-auto" />
                                                             ) : (
                                                                 <Image
                                                                     src={normalizeSrc(it.image)}
                                                                     alt={it.title || 'preview'}
                                                                     width={160}
                                                                     height={120}
-                                                                    className="object-contain"
+                                                                    className="object-contain h-28 mx-auto"
                                                                 />
                                                             )}
                                                         </div>
@@ -483,57 +662,127 @@ export default function SellWithUsPage() {
                                             </div>
                                         </div>
 
-                                        <div>
-                                            <label className="text-sm">Description</label>
-                                            <textarea value={it.description} onChange={e => updateItem(it.id, { description: e.target.value })} rows={3} className="mt-1 w-full p-2 border rounded" />
+                                        <div className="space-y-3">
+                                            <label className="text-sm font-semibold text-gray-700">Description</label>
+                                            <textarea
+                                                value={it.description}
+                                                onChange={e => updateItem(it.id, { description: e.target.value })}
+                                                rows={3}
+                                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                                placeholder="Describe your product..."
+                                            />
                                         </div>
                                     </div>
                                 )
                             })}
 
                             <div>
-                                <button type="button" onClick={addItem} className="px-4 py-2 rounded bg-indigo-50 text-indigo-700">Add another item</button>
+                                <button
+                                    type="button"
+                                    onClick={addItem}
+                                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 text-amber-700 font-semibold hover:from-amber-100 hover:to-amber-200 border border-amber-300 transition-all duration-200"
+                                >
+                                    <PlusIcon className="w-5 h-5" />
+                                    Add Another Item
+                                </button>
                             </div>
                         </section>
                     )}
 
-                    <div>
-                        <label className="text-sm font-medium">Short message / notes</label>
-                        <textarea value={form.message} onChange={e => updateField('message', e.target.value)} rows={4} className="w-full mt-2 p-3 border rounded" />
-                    </div>
+                    {/* Message & Logo */}
+                    <div className="space-y-6">
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <DocumentTextIcon className="w-4 h-4 text-amber-600" />
+                                Additional Message
+                            </label>
+                            <textarea
+                                value={form.message}
+                                onChange={e => updateField('message', e.target.value)}
+                                rows={4}
+                                className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all duration-200"
+                                placeholder="Tell us about your business or products..."
+                            />
+                        </div>
 
-                    <div>
-                        <label className="text-sm font-medium">Logo / picture (optional)</label>
-                        <input type="file" accept="image/*" onChange={handleLogoFile} className="mt-2" />
-                        <div className="mt-2">
-                            {uploadProgress['logo'] > 0 && uploadProgress['logo'] < 100 && (
-                                <div className="mb-2">
-                                    <div className="text-xs text-gray-600 mb-1">Uploading: {uploadProgress['logo']}%</div>
-                                    <ProgressBar pct={uploadProgress['logo']} />
-                                </div>
-                            )}
-                            {form.logo && (
-                                <div className="mt-3 h-20">
-                                    {String(form.logo).startsWith('blob:') ? (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={form.logo} alt="logo" className="h-20 object-contain" />
-                                    ) : (
-                                        <Image src={normalizeSrc(form.logo)} alt="logo" width={160} height={80} />
-                                    )}
-                                </div>
-                            )}
+                        <div className="space-y-3">
+                            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                                <PhotoIcon className="w-4 h-4 text-amber-600" />
+                                Logo / Brand Image (Optional)
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleLogoFile}
+                                className="w-full p-3 border border-gray-300 rounded-xl file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100"
+                            />
+                            <div className="mt-2">
+                                {uploadProgress['logo'] > 0 && uploadProgress['logo'] < 100 && (
+                                    <div className="mb-3">
+                                        <div className="text-xs text-gray-600 mb-2">Uploading: {uploadProgress['logo']}%</div>
+                                        <ProgressBar pct={uploadProgress['logo']} />
+                                    </div>
+                                )}
+                                {form.logo && (
+                                    <div className="mt-3 h-32 w-32 relative bg-white rounded-xl border border-gray-200 p-2">
+                                        {String(form.logo).startsWith('blob:') ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={form.logo} alt="logo" className="h-28 object-contain mx-auto" />
+                                        ) : (
+                                            <Image
+                                                src={normalizeSrc(form.logo)}
+                                                alt="logo"
+                                                width={128}
+                                                height={128}
+                                                className="object-contain h-28 mx-auto"
+                                            />
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {error && <div className="text-red-600 text-sm">{error}</div>}
-                    {success && <div className="text-green-600 text-sm">{success}</div>}
+                    {/* Messages */}
+                    {error && (
+                        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-rose-700 flex items-center gap-3">
+                            <ExclamationTriangleIcon className="w-5 h-5 flex-shrink-0" />
+                            {error}
+                        </div>
+                    )}
+                    {success && (
+                        <div className="p-4 bg-green-50 border border-green-200 rounded-2xl text-green-700 flex items-center gap-3">
+                            <CheckIcon className="w-5 h-5 flex-shrink-0" />
+                            {success}
+                        </div>
+                    )}
 
-                    <div className="flex gap-3">
-                        <button disabled={submitting} className="px-6 py-3 bg-indigo-600 text-white rounded-xl">
-                            {submitting ? 'Submitting…' : (form.application_type === 'business' ? 'Apply as seller' : 'Submit items for sale')}
+                    {/* Actions */}
+                    <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
+                        <button
+                            disabled={submitting}
+                            className="flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-br from-amber-600 to-amber-700 text-white font-semibold hover:from-amber-700 hover:to-amber-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm flex-1 justify-center"
+                        >
+                            {submitting ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                    Submitting...
+                                </>
+                            ) : (
+                                <>
+                                    <CheckIcon className="w-5 h-5" />
+                                    {form.application_type === 'business' ? 'Apply as Seller' : 'Submit Items for Sale'}
+                                </>
+                            )}
                         </button>
 
-                        <a href={`mailto:techevo404@gmail.com?subject=${encodeURIComponent('Seller enquiry')}`} className="px-6 py-3 border rounded-xl text-sm">Contact us</a>
+                        <a
+                            href={`mailto:techevo404@gmail.com?subject=${encodeURIComponent('Seller Enquiry - Tech Mall')}`}
+                            className="flex items-center gap-2 px-8 py-4 rounded-xl bg-gradient-to-br from-gray-100 to-gray-200 text-gray-700 font-semibold hover:from-gray-200 hover:to-gray-300 border border-gray-300 transition-all duration-200 flex-1 justify-center text-center"
+                        >
+                            <EnvelopeIcon className="w-5 h-5" />
+                            Contact Us Directly
+                        </a>
                     </div>
                 </form>
             </div>
