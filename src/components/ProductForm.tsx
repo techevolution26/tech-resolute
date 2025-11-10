@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { adminFetch } from '@/lib/adminApi'
+import { adminFetchJson } from '@/lib/adminApi'
 import Image from 'next/image'
 
 export interface ProductInput {
@@ -78,10 +78,11 @@ export default function ProductForm({ initial = {}, saveUrl = '/products', metho
         setError(null)
         setSaving(true)
         try {
-            const res = await adminFetch<ProductInput & { id?: number }>(saveUrl, {
+            const res = await adminFetchJson<ProductInput & { id?: number }>(saveUrl, {
                 method,
-                body: JSON.stringify(form)
-            })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(form),
+            });
             if (onSaved) onSaved(res)
         } catch (err) {
             setError((err as Error).message)

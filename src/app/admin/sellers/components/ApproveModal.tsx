@@ -2,9 +2,16 @@
 import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+type ApproveResponse = {
+    message?: string
+    user_id?: number
+    application_id?: number
+    [k: string]: unknown
+}
+
 type Props = {
     applicationId: number | string
-    onSuccess?: (res: any) => void
+    onSuccess?: (res: ApproveResponse) => void
     onClose?: () => void
 }
 
@@ -31,10 +38,13 @@ export default function ApproveModal({ applicationId, onSuccess, onClose }: Prop
                 body: JSON.stringify({ notes, notify_email: notify })
             })
 
-            const body = await res.json().catch(() => null)
-            if (!res.ok) throw new Error(body?.message || res.statusText)
+            const body = await res.json().catch(() => null) as unknown
+            if (!res.ok) {
+                const msg = (typeof body === 'object' && body !== null && 'message' in (body as Record<string, unknown>)) ? String((body as Record<string, unknown>).message) : res.statusText
+                throw new Error(msg)
+            }
 
-            if (onSuccess) onSuccess(body)
+            if (onSuccess) onSuccess((body as ApproveResponse) ?? { message: 'approved' })
             if (onClose) onClose()
             router.refresh()
         } catch (err) {

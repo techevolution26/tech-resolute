@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
 import CategoryForm from './components/CategoryForm'
-import type { Category } from './types'
+import type { Category } from '@/types' // ← use the shared central type
 
 type CategoryWithParent = Category & { parent_name?: string | null }
 
@@ -25,10 +25,22 @@ export default function AdminCategoriesPage() {
                 return
             }
             const body = await res.json().catch(() => null)
-            if (!res.ok) throw new Error(body?.message || res.statusText)
+            if (!res.ok) throw new Error((body && typeof body === 'object' && 'message' in body) ? String((body as Record<string, unknown>).message) : res.statusText)
 
-            // normalize list (flat)
-            const list: Category[] = Array.isArray(body) ? body : (body.data ?? [])
+            // normalize list (flat) — coerce types and turn null slug -> undefined
+            const raw = Array.isArray(body) ? body : (body && typeof body === 'object' ? (body as Record<string, unknown>).data ?? [] : [])
+            const list: Category[] = Array.isArray(raw) ? raw.map((it) => {
+                const r = it as Record<string, unknown>
+                return {
+                    id: Number(r['id']),
+                    name: String(r['name'] ?? ''),
+                    slug: r['slug'] == null ? undefined : String(r['slug']),
+                    parent_id: r['parent_id'] == null ? null : Number(r['parent_id']),
+                    children: Array.isArray(r['children']) ? (r['children'] as unknown as Category[]) : undefined,
+                    // keep any other fields if present: cast to unknown and merge (optional)
+                    ...(r as Record<string, unknown>)
+                } as Category
+            }).filter(c => !Number.isNaN(c.id)) : []
 
             // build id -> name map
             const idToName = new Map<number, string>()
@@ -105,7 +117,7 @@ export default function AdminCategoriesPage() {
                         <div>
                             <div className="font-medium">{c.name}</div>
                             <div className="text-xs text-gray-500">
-                                slug: {c.slug} • parent: {c.parent_name ?? '—'}
+                                slug: {c.slug ?? '—'} • parent: {c.parent_name ?? '—'}
                             </div>
                         </div>
                         <div className="flex gap-2">
@@ -120,7 +132,7 @@ export default function AdminCategoriesPage() {
                 <CategoryForm
                     initial={editing ?? undefined}
                     // pass the flat categories for parent select — NOTE: CategoryForm expects Category[] (parent_id etc)
-                    categoriesFlat={categories.map(({ parent_name, ...rest }) => rest)}
+                    categoriesFlat={categories.map(({ parent_name, ...rest }) => ({ ...rest }))}
                     onSaved={() => {
                         // reload categories after create/edit
                         loadCategories()

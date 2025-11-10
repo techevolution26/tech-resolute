@@ -1,8 +1,7 @@
-// src/app/admin/products/[id]/edit/page.tsx
 'use client'
 import React, { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import ProductForm from '@/app/admin/products/ProductForm' // adjust import path to your file
+import ProductForm from '@/app/admin/products/ProductForm'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
 import { normalizeSrc } from '@/lib/normalizeSrc'
 
@@ -41,12 +40,35 @@ export default function AdminEditProduct() {
           window.location.href = '/admin/login'
           return
         }
-        const body = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(body?.message || res.statusText)
+        const body = await res.json().catch(() => null) as unknown
+        if (!res.ok) {
+          const msg = (typeof body === 'object' && body !== null && 'message' in (body as Record<string, unknown>)) ? String((body as Record<string, unknown>)['message']) : res.statusText
+          throw new Error(msg)
+        }
         if (!mounted) return
-        setProduct(body)
-      } catch (e) {
-        console.error('Load product failed', e)
+
+        // try to coerce body into Product shape (best-effort)
+        if (typeof body === 'object' && body !== null) {
+          const b = body as Record<string, unknown>
+          const p: Product = {
+            id: Number(b['id']),
+            title: String(b['title'] ?? ''),
+            slug: b['slug'] ? String(b['slug']) : undefined,
+            description: b['description'] ? String(b['description']) : undefined,
+            price: String(b['price'] ?? ''),
+            currency: b['currency'] ? String(b['currency']) : undefined,
+            condition: b['condition'] ? String(b['condition']) : undefined,
+            category_id: b['category_id'] != null ? String(b['category_id']) : null,
+            stock: b['stock'] != null ? Number(b['stock']) : undefined,
+            image_url: b['image_url'] != null ? String(b['image_url']) : null,
+          }
+          setProduct(p)
+        } else {
+          setProduct(null)
+        }
+      } catch (err: unknown) {
+        // eslint-disable-next-line no-console
+        console.error('Load product failed', err)
       } finally {
         setLoading(false)
       }
@@ -75,9 +97,8 @@ export default function AdminEditProduct() {
           condition: product.condition,
           category_id: String(product.category_id ?? ''),
           stock: String(product.stock ?? 0),
-          // ProductForm expects initial.imageUrl (we used imageUrl earlier)
-          imageUrl: product.image_url ? normalizeSrc(product.image_url) : null,
-        } as any}
+          imageUrl: product.image_url ? normalizeSrc(product.image_url) : undefined,
+        }}
       />
     </div>
   )

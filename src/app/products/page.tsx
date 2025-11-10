@@ -1,4 +1,3 @@
-// src/app/products/page.tsx
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
@@ -8,9 +7,26 @@ import { MarketplaceBanner } from '@/components/MarketplaceBanner'
 import Link from 'next/link'
 import SkeletonCard from '@/components/SkeletonCard'
 
-type ApiProduct = any
+/** Narrow API product shape we expect (expand as needed) */
+interface ApiProduct {
+  id: number | string
+  title: string
+  price?: number | string | null
+  category?: { id?: number; name?: string; slug?: string } | string | null
+  image?: string | null
+  image_url?: string | null
+  images?: string[] | null
+  condition?: string | null
+  slug?: string | null
+  [k: string]: unknown
+}
 
-// Small inline Loader component (used as IntersectionObserver sentinel)
+/** Pager meta */
+type Meta = { current_page?: number; last_page?: number | null; total?: number | null }
+
+/** Cache entry stored in memory + persisted */
+type CacheEntry = { items: ProductType[]; meta?: Meta; ts: number }
+
 function Loader({ size = 32 }: { size?: number }) {
   return (
     <div className="flex items-center justify-center py-6">
@@ -26,14 +42,45 @@ function Loader({ size = 32 }: { size?: number }) {
   )
 }
 
+/** Helper to safely extract `message` from unknown JSON body */
+function getBodyMessage(body: unknown): string | null {
+  if (!body || typeof body !== 'object') return null
+  const b = body as Record<string, unknown>
+  if (typeof b.message === 'string') return b.message
+  if (typeof b.error === 'string') return b.error
+  return null
+}
+
+/** Helper to safely extract an array (data/results) from unknown JSON body */
+function getBodyData(body: unknown): unknown[] {
+  if (Array.isArray(body)) return body
+  if (body && typeof body === 'object') {
+    const b = body as Record<string, unknown>
+    if (Array.isArray(b.data)) return b.data
+    if (Array.isArray(b.results)) return b.results
+  }
+  return []
+}
+
+/** Helper to safely extract category name from ApiProduct.category */
+function extractCategoryName(category: ApiProduct['category']): string {
+  if (!category) return ''
+  if (typeof category === 'string') return category
+  if (typeof category === 'object' && category !== null && 'name' in category) {
+    const c = category as Record<string, unknown>
+    return typeof c.name === 'string' ? c.name : ''
+  }
+  return ''
+}
+
 export default function ProductsPage() {
   const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
 
   // UI state
   const [products, setProducts] = useState<ProductType[]>([])
   const [categories, setCategories] = useState<{ id: number; name: string; slug?: string }[]>([])
-  const [loading, setLoading] = useState(false) // initial load / filters
-  const [loadingMore, setLoadingMore] = useState(false) // infinite scroll load more
+  const [loading, setLoading] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // filters / pagination
@@ -54,13 +101,12 @@ export default function ProductsPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // SIMPLE IN-MEM CACHE: key is queryString + page
-  // value: { items: ProductType[], meta?: { current_page, last_page, total }, ts }
-  const cacheRef = useRef<Map<string, { items: ProductType[]; meta?: any; ts: number }>>(new Map())
+  // in-memory cache and types
+  const cacheRef = useRef<Map<string, CacheEntry>>(new Map())
 
   // LOCAL STORAGE CONFIG
   const LOCAL_KEY = 'tm_products_cache_v1'
-  const CACHE_TTL = 1000 * 60 * 5 // 5 minutes TTL
+  const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
 
   // Debounce q input (updates debouncedQ after delay)
   useEffect(() => {
@@ -77,26 +123,31 @@ export default function ProductsPage() {
           if (!mounted) return
           if (!res.ok) return
           const body = await res.json().catch(() => null)
-          const list = Array.isArray(body) ? body : (body.data ?? [])
-          if (mounted) setCategories(list)
-        } catch (e) {
+          const list = getBodyData(body)
+          if (mounted) setCategories(list.map(item => {
+            if (item && typeof item === 'object') {
+              const rec = item as Record<string, unknown>
+              return { id: Number(rec['id']), name: String(rec['name'] ?? ''), slug: typeof rec['slug'] === 'string' ? rec['slug'] : undefined }
+            }
+            return { id: 0, name: '', slug: undefined }
+          }).filter(c => !Number.isNaN(c.id)))
+        } catch {
           // non-fatal
         }
       })()
     return () => { mounted = false }
   }, [apiBase])
 
-  // Persist helpers
+  // Persist helpers (typed)
   const saveLocalCache = useCallback(() => {
     try {
-      const obj: Record<string, any> = {}
+      const obj: Record<string, CacheEntry> = {}
       cacheRef.current.forEach((v, k) => {
         obj[k] = v
       })
       localStorage.setItem(LOCAL_KEY, JSON.stringify(obj))
-    } catch (e) {
+    } catch {
       // ignore storage errors
-      // console.warn('saveLocalCache failed', e)
     }
   }, [])
 
@@ -104,9 +155,9 @@ export default function ProductsPage() {
     try {
       const raw = localStorage.getItem(LOCAL_KEY)
       if (!raw) return
-      const parsed = JSON.parse(raw || '{}') as Record<string, { items: ProductType[]; meta?: any; ts: number }>
+      const parsed = JSON.parse(raw || '{}') as Record<string, CacheEntry>
       const now = Date.now()
-      const map = new Map<string, { items: ProductType[]; meta?: any; ts: number }>()
+      const map = new Map<string, CacheEntry>()
       for (const k of Object.keys(parsed)) {
         const v = parsed[k]
         if (!v || !v.ts) continue
@@ -117,17 +168,17 @@ export default function ProductsPage() {
         map.set(k, v)
       }
       if (map.size > 0) cacheRef.current = map
-    } catch (e) {
-      // console.warn('loadLocalCache failed', e)
+    } catch {
+      // ignore
     }
   }, [])
 
   // Utility to set cache and persist
-  const setCacheEntry = useCallback((qs: string, value: { items: ProductType[]; meta?: any }) => {
+  const setCacheEntry = useCallback((qs: string, value: { items: ProductType[]; meta?: Meta }) => {
     try {
       cacheRef.current.set(qs, { ...value, ts: Date.now() })
       saveLocalCache()
-    } catch (e) {
+    } catch {
       // ignore
     }
   }, [saveLocalCache])
@@ -211,25 +262,29 @@ export default function ProductsPage() {
         if (!mounted) return
         if (!res.ok) {
           const body = await res.json().catch(() => null)
-          throw new Error(body?.message || res.statusText || 'Failed to load products')
+          const msg = getBodyMessage(body) ?? res.statusText ?? 'Failed to load products'
+          throw new Error(msg)
         }
-        const body = await res.json().catch(() => null)
-        const list = Array.isArray(body) ? body : (body.data ?? body)
-        const mapped: ProductType[] = (list || []).map((p: ApiProduct) => ({
-          id: p.id,
-          title: p.title,
-          price: typeof p.price === 'number' ? p.price.toLocaleString() : (p.price ?? ''),
-          category: p?.category?.name ?? p?.category ?? '',
-          image: p?.image_url ?? p?.image ?? null,
-          condition: p.condition ?? null,
-          slug: p.slug ?? String(p.id),
-        }))
+        const body = await res.json().catch(() => null) as unknown
+        const list = getBodyData(body)
+        const mapped: ProductType[] = (Array.isArray(list) ? list : []).map((raw) => {
+          const p = raw as ApiProduct
+          return {
+            id: p.id,
+            title: String(p.title ?? ''),
+            price: typeof p.price === 'number' ? p.price.toLocaleString() : (p.price ?? '') as string,
+            category: extractCategoryName(p.category),
+            image: p.image_url ?? p.image ?? null,
+            condition: p.condition ?? null,
+            slug: p.slug ?? String(p.id),
+          }
+        })
 
         // update cache (and persist to localStorage)
-        const meta = (!Array.isArray(body) && body) ? {
-          current_page: body.current_page ?? body.page ?? 1,
-          last_page: body.last_page ?? null,
-          total: body.total ?? null
+        const meta: Meta | undefined = (body && typeof body === 'object' && !Array.isArray(body)) ? {
+          current_page: (body as Record<string, unknown>)['current_page'] as number | undefined ?? (body as Record<string, unknown>)['page'] as number | undefined ?? 1,
+          last_page: (body as Record<string, unknown>)['last_page'] as number | null | undefined ?? null,
+          total: (body as Record<string, unknown>)['total'] as number | undefined ?? null
         } : undefined
 
         setCacheEntry(qs, { items: mapped, meta })
@@ -239,9 +294,9 @@ export default function ProductsPage() {
           setProducts(prev => page === 1 ? mapped : [...prev, ...mapped].filter((v, i, a) => a.findIndex(x => x.id === v.id) === i))
 
           if (meta) {
-            setCurrentPage(meta.current_page)
-            setLastPage(meta.last_page)
-            setTotal(meta.total)
+            setCurrentPage(meta.current_page ?? null)
+            setLastPage(meta.last_page ?? null)
+            setTotal(meta.total ?? null)
             if (meta.last_page != null) setHasMore((meta.current_page ?? 1) < meta.last_page)
             else setHasMore((mapped?.length ?? 0) >= perPage)
           } else {
@@ -251,9 +306,10 @@ export default function ProductsPage() {
             setHasMore((mapped?.length ?? 0) >= perPage)
           }
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return
-        if (mounted) setError(err?.message ?? 'Failed to load products')
+      } catch (err: unknown) {
+        const e = err as { name?: string; message?: string }
+        if (e.name === 'AbortError') return
+        if (mounted) setError(e.message ?? 'Failed to load products')
       } finally {
         if (mounted) {
           setLoading(false)

@@ -1,9 +1,8 @@
-// src/app/admin/categories/components/CategoryTree.tsx
 'use client'
 import React, { useMemo, useState } from 'react'
 import { DndContext, useSensor, useSensors, PointerSensor, DragEndEvent } from '@dnd-kit/core'
 import { adminFetch, clearAdminToken } from '@/lib/adminApi'
-import type { Category } from '../types'
+import type { Category } from '@/types'
 
 type Props = {
   categories: Category[] // flat list with parent_id
@@ -14,30 +13,30 @@ type Props = {
 
 /** Build nested tree from flat list and keep map for quick lookup */
 function buildTree(flat: Category[]) {
-  const map = new Map<number, (Category & { children: (Category & { children?: any[] })[] })>()
-  flat.forEach(c => map.set(c.id, { ...c, children: [] }))
-  const roots: (Category & { children: (Category & { children?: any[] })[] })[] = []
-  map.forEach(node => {
+  const map = new Map<number, Category & { children?: (Category & { children?: Category[] })[] }>()
+  flat.forEach((c) => map.set(c.id, { ...c, children: [] }))
+  const roots: (Category & { children?: (Category & { children?: Category[] })[] })[] = []
+  map.forEach((node) => {
     const parent = node.parent_id ?? null
-    if (parent && map.has(parent)) map.get(parent)!.children.push(node)
+    if (parent && map.has(parent)) map.get(parent)!.children!.push(node)
     else roots.push(node)
   })
   // sort for stable order
-  function sortNodes(nodes: any[]) {
-    nodes.sort((a,b) => String(a.name).localeCompare(String(b.name)))
-    nodes.forEach(n => n.children && sortNodes(n.children))
+  function sortNodes(nodes: (Category & { children?: Category[] })[]) {
+    nodes.sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    nodes.forEach((n) => n.children && sortNodes(n.children as (Category & { children?: Category[] })[]))
   }
-  sortNodes(roots)
+  sortNodes(roots as (Category & { children?: Category[] })[])
   return { roots, map }
 }
 
 /** Flatten nested tree for a select (id,name,depth) */
 function flattenForSelect(nodes: (Category & { children?: Category[] })[]) {
   const out: { id: number; name: string; depth: number }[] = []
-  function walk(list: any[], depth = 0) {
+  function walk(list: (Category & { children?: Category[] })[], depth = 0) {
     for (const n of list) {
       out.push({ id: n.id, name: n.name, depth })
-      if (n.children && n.children.length) walk(n.children, depth + 1)
+      if (n.children && n.children.length) walk(n.children as (Category & { children?: Category[] })[], depth + 1)
     }
   }
   walk(nodes, 0)
@@ -45,7 +44,7 @@ function flattenForSelect(nodes: (Category & { children?: Category[] })[]) {
 }
 
 /** Get all descendant IDs for a given node id using the map */
-function getDescendantIds(rootId: number, map: Map<number, any>) {
+function getDescendantIds(rootId: number, map: Map<number, Category & { children?: Category[] }>) {
   const out = new Set<number>()
   function walk(id: number) {
     const node = map.get(id)
@@ -123,7 +122,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
       }
       const json = await res.json().catch(() => null)
       if (!res.ok) throw new Error(json?.message || res.statusText)
-      if (onMoved) onMoved()
+      onMoved?.()
     } catch (err) {
       alert('Move failed: ' + (err as Error).message)
     } finally {
@@ -145,7 +144,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
         const b = await res.json().catch(() => null)
         throw new Error(b?.message || res.statusText)
       }
-      if (onDeleted) onDeleted()
+      onDeleted?.()
     } catch (err) {
       alert('Delete failed: ' + (err as Error).message)
     } finally {
@@ -165,7 +164,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
 
           <div className="flex items-center gap-2">
             <button onClick={() => onEdit?.(n)} className="px-2 py-1 text-xs bg-gray-100 rounded">Edit</button>
-            <button onClick={() => { setMovingId(prev => prev === n.id ? null : n.id); setMoveTarget('') }} className="px-2 py-1 text-xs bg-yellow-50 rounded">Move</button>
+            <button onClick={() => { setMovingId((prev) => (prev === n.id ? null : n.id)); setMoveTarget('') }} className="px-2 py-1 text-xs bg-yellow-50 rounded">Move</button>
             <button onClick={() => handleDelete(n.id)} className="px-2 py-1 text-xs bg-red-50 text-red-600 rounded">
               {deleteLoading === n.id ? 'Deleting…' : 'Delete'}
             </button>
@@ -177,21 +176,20 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
           <div className="mt-2 flex items-center gap-2">
             <select
               value={moveTarget}
-              onChange={e => setMoveTarget(e.target.value === '' ? '' : Number(e.target.value))}
+              onChange={(e) => setMoveTarget(e.target.value === '' ? '' : Number(e.target.value))}
               className="p-2 border rounded"
             >
               <option value="">— Move to root —</option>
               {selectOpts
-                .filter(o => o.id !== n.id) // don't allow moving onto itself
-                .map(o => (
+                .filter((o) => o.id !== n.id) // don't allow moving onto itself
+                .map((o) => {
                   // also hide descendants in this dropdown to avoid cycles
-                  (!getDescendantIds(n.id, map).has(o.id)) ? (
+                  return getDescendantIds(n.id, map).has(o.id) ? null : (
                     <option key={o.id} value={o.id}>
                       {Array(o.depth).fill('\u00A0\u00A0').join('')}{o.depth > 0 ? '↳ ' : ''}{o.name}
                     </option>
-                  ) : null
-                ))
-              }
+                  )
+                })}
             </select>
             <button onClick={async () => {
               // same checks as drag: disallow descendant target
@@ -218,7 +216,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
                 if (!res.ok) throw new Error(body?.message || res.statusText)
                 setMovingId(null)
                 setMoveTarget('')
-                if (onMoved) onMoved()
+                onMoved?.()
               } catch (err) {
                 alert('Move failed: ' + (err as Error).message)
               } finally {
@@ -233,7 +231,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
 
         {n.children && n.children.length > 0 && (
           <ul className="mt-3 ml-4 space-y-2">
-            {renderNodes(n.children as any)}
+            {renderNodes(n.children as (Category & { children?: Category[] })[])}
           </ul>
         )}
       </li>
@@ -247,7 +245,7 @@ export default function CategoryTree({ categories, onEdit, onDeleted, onMoved }:
           <div className="text-gray-500">No categories yet.</div>
         ) : (
           <ul className="space-y-3">
-            {renderNodes(roots)}
+            {renderNodes(roots as (Category & { children?: Category[] })[])}
           </ul>
         )}
       </div>

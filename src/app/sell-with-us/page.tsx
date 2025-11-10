@@ -1,4 +1,3 @@
-// src/app/sell-with-us/page.tsx
 'use client'
 
 import React, { useState } from 'react'
@@ -38,6 +37,29 @@ const makeEmptyItem = (): ItemRow => ({
     image: ''
 })
 
+/** Payload shapes we send to the API */
+type OneTimeItemPayload = {
+    title: string
+    condition?: string
+    quantity: number
+    estimated_price?: string
+    description?: string
+    image_url?: string | null
+}
+
+type SellerApplicationPayload = {
+    application_type: 'business' | 'one_time'
+    business_name?: string | undefined
+    contact_name?: string | undefined
+    email?: string | undefined
+    phone?: string | undefined
+    website?: string | undefined
+    country?: string | undefined
+    message?: string | undefined
+    logo_url?: string | undefined
+    items?: OneTimeItemPayload[] | undefined
+}
+
 export default function SellWithUsPage() {
     const [form, setForm] = useState<FormState>({
         application_type: 'business',
@@ -53,7 +75,6 @@ export default function SellWithUsPage() {
     })
 
     const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
-    const [fileUploading, setFileUploading] = useState(false)
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [errors, setErrors] = useState<Record<string, string[]>>({})
@@ -101,7 +122,7 @@ export default function SellWithUsPage() {
                         mime,
                         quality
                     )
-                } catch (e) {
+                } catch {
                     URL.revokeObjectURL(url)
                     reject(new Error('Resize failed'))
                 }
@@ -119,7 +140,6 @@ export default function SellWithUsPage() {
     // --- helper: upload with progress (xhr) ---
     // NOTE: POST goes to apiBase; we return a validated absolute storage URL (or empty string)
     async function uploadFileWithProgress(file: File, key: string): Promise<string> {
-        setFileUploading(true)
         setUploadProgress(prev => ({ ...prev, [key]: 0 }))
         try {
             let uploadBlob: File | Blob = file
@@ -147,11 +167,12 @@ export default function SellWithUsPage() {
 
                 xhr.onload = () => {
                     const status = xhr.status
-                    const resp = xhr.response || {}
+                    const respRaw = xhr.response as unknown
                     setUploadProgress(prev => ({ ...prev, [key]: 100 }))
 
                     if (status >= 200 && status < 300) {
-                        const maybe = resp?.url || resp?.publicUrl || resp?.path || resp?.key
+                        const respObj = (respRaw && typeof respRaw === 'object') ? (respRaw as Record<string, unknown>) : {}
+                        const maybe = (respObj['url'] ?? respObj['publicUrl'] ?? respObj['path'] ?? respObj['key']) as unknown
                         if (!maybe) return resolve('')
                         let absolute = String(maybe).trim()
 
@@ -161,7 +182,6 @@ export default function SellWithUsPage() {
                         // if server returned a relative path like "/storage/..." or "storage/..."
                         // we will prefix storageBase
                         if (!/^https?:\/\//i.test(absolute)) {
-                            // ensure it starts with '/'
                             const p = absolute.startsWith('/') ? absolute : `/${absolute.replace(/^\/+/, '')}`
                             absolute = `${storageBase}${p}`
                         }
@@ -169,37 +189,37 @@ export default function SellWithUsPage() {
                         // normalize accidental /api/storage -> /storage
                         absolute = absolute.replace(/\/api\/storage/gi, '/storage')
 
-                        // If the string mistakenly contains a repeated host (e.g. host + full-url),
-                        // attempt to collapse to the last full URL part.
+                        // If the string mistakenly contains repeated host, collapse to last full URL part.
                         const httpOccurrences = absolute.match(/https?:\/\//ig)
                         if (httpOccurrences && httpOccurrences.length > 1) {
-                            // take substring starting from last 'http'
                             const last = absolute.lastIndexOf('http')
                             absolute = absolute.slice(last)
                         }
 
-                        // validate
+                        // validate by constructing URL
                         try {
-                            // Will throw if invalid
-                            // eslint-disable-next-line no-new
+                            // will throw on invalid
+                            // eslint-disable-next-line @typescript-eslint/no-unused-expressions
                             new URL(absolute)
                             resolve(absolute)
-                        } catch (err) {
-                            // fallback: return empty string so UI doesn't attempt to render bad url
+                        } catch {
                             resolve('')
                         }
                         return
                     }
 
-                    const errMsg = (resp && resp.message) || xhr.statusText || `Upload failed (${status})`
+                    const respObj = (respRaw && typeof respRaw === 'object') ? (respRaw as Record<string, unknown>) : {}
+                    const respMessage = (respObj['message'] && String(respObj['message'])) ?? xhr.statusText ?? `Upload failed (${status})`
+                    const errMsg = String(respMessage) // ensure type is string
                     reject(new Error(errMsg))
+
                 }
 
                 xhr.onerror = () => reject(new Error('Network error during upload'))
                 xhr.send(fd)
             })
         } finally {
-            setFileUploading(false)
+            // leave uploadProgress as-is (100 or last state)
         }
     }
 
@@ -215,8 +235,8 @@ export default function SellWithUsPage() {
             const key = 'logo'
             const serverUrl = await uploadFileWithProgress(f, key)
             if (serverUrl) setForm(prev => ({ ...prev, logo: serverUrl }))
-        } catch (err: any) {
-            setError(err?.message || 'Upload failed')
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err))
         } finally {
             setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
         }
@@ -234,8 +254,8 @@ export default function SellWithUsPage() {
             const key = `item-${itemId}`
             const serverUrl = await uploadFileWithProgress(f, key)
             if (serverUrl) updateItem(itemId, { image: serverUrl })
-        } catch (err: any) {
-            setError(err?.message || 'Upload failed')
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err))
         } finally {
             setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
         }
@@ -270,7 +290,7 @@ export default function SellWithUsPage() {
         setSuccess(null)
 
         try {
-            const payload: any = {
+            const payload: SellerApplicationPayload = {
                 application_type: form.application_type,
                 contact_name: form.contact_name,
                 email: form.email,
@@ -278,11 +298,11 @@ export default function SellWithUsPage() {
                 website: form.website,
                 country: form.country,
                 message: form.message,
-                logo_url: form.logo
+                logo_url: form.logo || undefined
             }
 
             if (form.application_type === 'business') {
-                payload.business_name = form.business_name
+                payload.business_name = form.business_name || undefined
             } else {
                 payload.items = form.items.map(it => ({
                     title: it.title,
@@ -301,15 +321,16 @@ export default function SellWithUsPage() {
             })
 
             if (res.status === 422) {
-                const body = await res.json().catch(() => null)
-                const serverErrors = body?.errors ?? {}
+                const body = await res.json().catch(() => null) as unknown
+                const serverErrors = (body && typeof body === 'object' && (body as Record<string, unknown>)['errors']) ? (body as Record<string, unknown>)['errors'] as Record<string, string[]> : {}
                 setErrors(serverErrors)
-                throw new Error(firstError(serverErrors) || body?.message || 'Validation failed')
+                throw new Error(firstError(serverErrors) || ((body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)) ? String((body as Record<string, unknown>)['message']) : 'Validation failed'))
             }
 
             if (!res.ok) {
-                const body = await res.json().catch(() => null)
-                throw new Error(body?.message || res.statusText || 'Failed')
+                const body = await res.json().catch(() => null) as unknown
+                const msg = (body && typeof body === 'object' && 'message' in (body as Record<string, unknown>)) ? String((body as Record<string, unknown>)['message']) : res.statusText || 'Failed'
+                throw new Error(msg)
             }
 
             setSuccess('Application sent — we will review and contact you shortly.')
@@ -326,8 +347,8 @@ export default function SellWithUsPage() {
                 items: [makeEmptyItem()]
             })
             setUploadProgress({})
-        } catch (err: any) {
-            setError(err?.message || 'Submission failed')
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err))
         } finally {
             setSubmitting(false)
         }

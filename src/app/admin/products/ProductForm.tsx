@@ -1,4 +1,3 @@
-// src/app/admin/products/ProductForm.tsx
 'use client'
 import React, { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -17,12 +16,21 @@ export type ProductFormValues = {
     imageFile?: File | null
 }
 
-type CategoryRaw = { id: number; name: string; parent_id?: number | null }
+type CategoryRaw = { id: number; name: string; parent_id?: number | null; children?: unknown }
 type FlatCategory = { id: number; name: string; depth: number }
+type InitialWithImage = Partial<ProductFormValues> & { imageUrl?: string | null }
+
 
 type Props = {
     productId?: number | null
     initial?: Partial<ProductFormValues & { imageUrl?: string }>
+}
+
+type CategoryNode = {
+    id: number
+    name: string
+    parent_id?: number | null
+    children: CategoryNode[]
 }
 
 export default function ProductForm({ productId = null, initial = {} }: Props) {
@@ -35,9 +43,9 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
         condition: initial.condition ?? 'New',
         category_id: initial.category_id ?? '',
         stock: initial.stock ?? '0',
-        imageFile: null
+        imageFile: null,
     })
-    const [imagePreview, setImagePreview] = useState<string | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(initial.imageUrl ?? null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [categories, setCategories] = useState<FlatCategory[]>([])
@@ -45,32 +53,40 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
     const router = useRouter()
 
     // ---- utilities: build tree & flatten with depth ----
-    function buildCategoryTree(flat: CategoryRaw[]) {
-        const map = new Map<number, any>()
-        const roots: any[] = []
+    function buildCategoryTree(flat: CategoryRaw[]): CategoryNode[] {
+        const map = new Map<number, CategoryNode>()
+        const roots: CategoryNode[] = []
 
-        flat.forEach((c) => map.set(c.id, { ...c, children: [] }))
+        for (const c of flat) {
+            map.set(c.id, { id: c.id, name: c.name, parent_id: c.parent_id ?? null, children: [] })
+        }
 
-        flat.forEach((c) => {
-            const node = map.get(c.id)
-            if (c.parent_id && map.has(c.parent_id)) {
-                map.get(c.parent_id).children.push(node)
+        for (const c of flat) {
+            const node = map.get(c.id)!
+            const parentId = c.parent_id ?? null
+            if (parentId !== null && map.has(parentId)) {
+                map.get(parentId)!.children.push(node)
             } else {
                 roots.push(node)
             }
-        })
+        }
 
         return roots
     }
 
-    function flattenWithDepth(nodes: any[], depth = 0, out: FlatCategory[] = []) {
+    function flattenWithDepth(nodes: CategoryNode[], depth = 0, out: FlatCategory[] = []) {
         for (const n of nodes) {
             out.push({ id: n.id, name: n.name, depth })
-            if (Array.isArray(n.children) && n.children.length) {
+            if (n.children && n.children.length) {
                 flattenWithDepth(n.children, depth + 1, out)
             }
         }
         return out
+    }
+
+    // runtime guard: does this object look like nested nodes (has children)?
+    function looksNestedCandidate(x: unknown): x is { children?: unknown } {
+        return typeof x === 'object' && x !== null && ('children' in x)
     }
 
     // ---- loading categories and transform to flattened list with depth ----
@@ -84,40 +100,72 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
                     window.location.href = '/admin/login'
                     return
                 }
-                const body = await res.json().catch(() => null)
-                if (!res.ok) throw new Error(body?.message || res.statusText)
-                // api may return paginated {data:[]} or flat array
-                const listRaw: CategoryRaw[] = Array.isArray(body) ? body : (body.data ?? [])
 
-                if (!mounted) return
-                // some APIs might already return a nested structure — try to detect
-                // If items have 'children' property, assume nested tree already
-                const looksNested = listRaw.length > 0 && (listRaw as any)[0].children != null
+                const body = (await res.json().catch(() => null)) as unknown
+                if (!res.ok) {
+                    const msg =
+                        typeof body === 'object' && body !== null && 'message' in (body as Record<string, unknown>)
+                            ? String((body as Record<string, unknown>)['message'])
+                            : res.statusText
+                    throw new Error(msg)
+                }
 
-                const flatNormalized: CategoryRaw[] =
-                    looksNested
-                        ? // flatten nested to simple array (if necessary)
-                        (function flattenNested(list: any[]): CategoryRaw[] {
-                            const out: CategoryRaw[] = []
-                            function walk(nodes: any[], parent: number | null = null) {
-                                for (const n of nodes) {
-                                    out.push({ id: Number(n.id), name: String(n.name), parent_id: parent ?? n.parent_id ?? null })
-                                    if (Array.isArray(n.children) && n.children.length) walk(n.children, n.id)
+                // body might be array or { data: [...] }
+                const rawList =
+                    Array.isArray(body) ? body : (typeof body === 'object' && body !== null && Array.isArray((body as Record<string, unknown>)['data'])
+                        ? (body as Record<string, unknown>)['data']
+                        : [])
+
+                // if first item has 'children' property, treat as nested and flatten it
+                let flatNormalized: CategoryRaw[] = []
+
+                if (Array.isArray(rawList) && rawList.length > 0 && looksNestedCandidate(rawList[0])) {
+                    // flatten nested to simple array
+                    const flattenNested = (list: unknown[]): CategoryRaw[] => {
+                        const out: CategoryRaw[] = []
+                        function walk(nodes: unknown[], parent: number | null = null) {
+                            for (const n of nodes) {
+                                if (typeof n === 'object' && n !== null) {
+                                    const rec = n as Record<string, unknown>
+                                    const id = rec['id'] != null ? Number(rec['id']) : NaN
+                                    const name = rec['name'] != null ? String(rec['name']) : ''
+                                    out.push({ id, name, parent_id: parent ?? (rec['parent_id'] as number | null | undefined) ?? null })
+                                    if (Array.isArray(rec['children']) && rec['children'].length) {
+                                        walk(rec['children'] as unknown[], id)
+                                    }
                                 }
                             }
-                            walk(list)
-                            return out
-                        })(listRaw as any)
-                        : // assume already flat with parent_id
-                        (listRaw as CategoryRaw[])
+                        }
+                        walk(list)
+                        return out
+                    }
+                    flatNormalized = flattenNested(rawList)
+                } else if (Array.isArray(rawList)) {
+                    // assume already flat records
+                    flatNormalized = rawList
+                        .map((it) => {
+                            if (typeof it === 'object' && it !== null) {
+                                const r = it as Record<string, unknown>
+                                return {
+                                    id: Number(r['id']),
+                                    name: String(r['name'] ?? ''),
+                                    parent_id: r['parent_id'] == null ? null : Number(r['parent_id']),
+                                } as CategoryRaw
+                            }
+                            // fallback empty
+                            return { id: 0, name: '', parent_id: null } as CategoryRaw
+                        })
+                        .filter(c => !Number.isNaN(c.id))
+                }
 
-                // Build tree and flatten with indentation depth
+                if (!mounted) return
                 const tree = buildCategoryTree(flatNormalized)
                 const flatWithDepth = flattenWithDepth(tree)
                 setCategories(flatWithDepth)
-            } catch (e) {
-                // non-fatal; keep categories empty and log
-                // console.warn('Failed to load categories', e)
+            } catch (err: unknown) {
+                // non-fatal; keep categories empty and log to console for dev
+                // eslint-disable-next-line no-console
+                console.warn('Failed to load categories', err)
             }
         }
         loadCategories()
@@ -125,8 +173,12 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
     }, [])
 
     useEffect(() => {
-        // support initial.imageUrl (stored image url) as preview
-        if (initial && (initial as any).imageUrl) setImagePreview((initial as any).imageUrl)
+        if (!initial) return
+
+        const init = initial as InitialWithImage
+        if (typeof init.imageUrl === 'string' && init.imageUrl) {
+            setImagePreview(init.imageUrl)
+        }
     }, [initial])
 
     function onChangeField<K extends keyof ProductFormValues>(field: K, v: ProductFormValues[K]) {
@@ -141,14 +193,16 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
             return
         }
         const reader = new FileReader()
-        reader.onload = () => setImagePreview(reader.result as string)
+        reader.onload = () => setImagePreview(String(reader.result ?? ''))
         reader.readAsDataURL(f)
     }
 
+    // === FIXED submit with correct try/catch/finally and msg scoping ===
     async function submit(e?: React.FormEvent) {
         e?.preventDefault()
         setError(null)
         setLoading(true)
+
         try {
             const form = new FormData()
             form.append('title', values.title)
@@ -176,18 +230,24 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
                 return
             }
 
-            const body = await res.json().catch(() => null)
-            if (!res.ok) throw new Error(body?.message || res.statusText)
+            const body = (await res.json().catch(() => null)) as unknown
+            if (!res.ok) {
+                const msg =
+                    typeof body === 'object' && body !== null && 'message' in (body as Record<string, unknown>)
+                        ? String((body as Record<string, unknown>)['message'])
+                        : res.statusText
+                throw new Error(msg)
+            }
 
+            // success -> navigate to products list
             router.push('/admin/products')
-        } catch (err) {
-            setError((err as Error).message)
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : String(err))
         } finally {
             setLoading(false)
         }
     }
 
-    // helper to detect data: previews
     const isDataUri = (src?: string | null) => !!src && src.startsWith('data:')
 
     return (
@@ -227,7 +287,6 @@ export default function ProductForm({ productId = null, initial = {} }: Props) {
                             </option>
                         ))}
                     </select>
-                    {/* <div className="text-xs text-gray-500 mt-1">Categories are loaded from the API </div> */}
                 </div>
 
                 <div>

@@ -6,7 +6,7 @@ import { normalizeSrc } from '@/lib/normalizeSrc'
 
 type Img = { id?: number; url: string }
 
-export default function ProductGallery({ images, title }: { images: Img[]; title?: string }) {
+export default function ProductGallery({ images, title }: { images: Img[]; title: string }) {
     const [index, setIndex] = useState(0)
     const [open, setOpen] = useState(false)
 

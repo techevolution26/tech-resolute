@@ -37,6 +37,15 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
         }, 4000)
     }
 
+    // safe body message extractor
+    function getBodyMessage(body: unknown): string | null {
+        if (!body || typeof body !== 'object') return null
+        const b = body as Record<string, unknown>
+        if (typeof b.message === 'string') return b.message
+        if (typeof b.error === 'string') return b.error
+        return null
+    }
+
     async function createOrder() {
         setError(null)
         setFieldErrors({})
@@ -79,19 +88,19 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
                 body: JSON.stringify(payload),
             })
 
-            const body = await res.json().catch(() => null)
+            const body = await res.json().catch(() => null) as unknown
 
             if (!res.ok) {
-                if (res.status === 422 && body?.errors) {
-                    setFieldErrors(body.errors)
-                    setError(body.message || 'Validation failed')
+                if (res.status === 422 && body && typeof body === 'object' && (body as Record<string, unknown>)['errors']) {
+                    setFieldErrors((body as Record<string, unknown>)['errors'] as Record<string, string[]>)
+                    setError(getBodyMessage(body) ?? 'Validation failed')
                 } else {
-                    setError(body?.message || res.statusText || 'Order failed')
+                    setError(getBodyMessage(body) ?? res.statusText ?? 'Order failed')
                 }
 
                 if (paymentWin) {
                     try {
-                        paymentWin.postMessage({ type: 'order_error', message: body?.message ?? 'Order failed' }, window.location.origin)
+                        paymentWin.postMessage({ type: 'order_error', message: getBodyMessage(body) ?? 'Order failed' }, window.location.origin)
                     } catch { /* ignore */ }
                 }
 
@@ -99,31 +108,41 @@ export default function OrderPanel({ productId, productTitle, productPrice }: Pr
                 return
             }
 
-            const orderId = Number(body?.id ?? body?.order_id ?? -1)
-            const checkoutUrl = body?.checkout_url ?? null
+            const orderId = Number((body && typeof body === 'object' && 'id' in (body as Record<string, unknown>)) ? ((body as Record<string, unknown>)['id']) : ((body as Record<string, unknown>)['order_id'] ?? -1))
+            const checkoutUrl = (body && typeof body === 'object') ? ((body as Record<string, unknown>)['checkout_url'] as string | undefined) : undefined
 
             // optimistic success / toast / analytics
-            setSuccess({ id: orderId, checkout_url: checkoutUrl ?? undefined })
+            setSuccess({ id: orderId, checkout_url: checkoutUrl })
             showToast(`Order created — #${orderId}`)
-            if ((window as any).dataLayer) {
-                (window as any).dataLayer.push({ event: 'order_created', orderId })
-            } else {
-                console.log('ANALYTICS order_created', { orderId })
+
+            // analytics push (safe)
+            try {
+                const w = window as unknown as { dataLayer?: unknown[] }
+                if (Array.isArray(w.dataLayer)) {
+                    ; (w.dataLayer as unknown[]).push({ event: 'order_created', orderId })
+                } else {
+                    // fallback dev log
+                    // eslint-disable-next-line no-console
+                    console.log('ANALYTICS order_created', { orderId })
+                }
+            } catch {
+                // ignore analytics errors
             }
 
             // tell the processing window about the order (so it can redirect or poll)
             if (paymentWin) {
                 try {
                     paymentWin.postMessage({ type: 'order', orderId, checkout_url: checkoutUrl }, window.location.origin)
-                } catch (err) {
+                } catch {
                     // fallback: open checkout url directly
                     if (checkoutUrl) window.open(checkoutUrl, '_blank')
                 }
             } else {
                 if (checkoutUrl) window.open(checkoutUrl, '_blank')
             }
-        } catch (err: any) {
-            setError(err?.message || 'Network error')
+        } catch (err: unknown) {
+            const e = err instanceof Error ? err : { message: String(err) }
+            setError((e as Error).message || 'Network error')
         } finally {
             setLoading(false)
         }

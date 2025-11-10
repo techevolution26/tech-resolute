@@ -1,4 +1,3 @@
-// src/app/products/[slug]/page.tsx
 import React from 'react'
 import { notFound } from 'next/navigation'
 import Layout from '@/components/Layout'
@@ -16,8 +15,9 @@ type ApiProduct = {
     category?: { id: number; name: string } | string | null
     condition?: string | null
     description?: string | null
-    images?: { id?: number; url: string }[] | null
+    images?: ({ id?: number; url?: string; path?: string; full_url?: string } | string)[] | null
     image_url?: string | null
+    [k: string]: unknown
 }
 
 interface Params {
@@ -27,27 +27,33 @@ interface Params {
 export default async function ProductDetail({ params }: Params) {
     const slug = (await params).slug
     const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/$/, '')
-    // server-side fetch; you can add `cache: 'no-store'` if you want fresh each request
     const res = await fetch(`${apiBase}/v1/products/${encodeURIComponent(slug)}`, { next: { revalidate: 60 } })
     if (res.status === 404) return notFound()
-    if (!res.ok) {
-        // fallback to notFound to avoid exposing error detail to public page
-        return notFound()
-    }
+    if (!res.ok) return notFound()
 
     const body = await res.json().catch(() => null)
-    // API may return { product, related } or a plain product; normalize:
-    const product: ApiProduct = body?.product ?? body
+    const product = (body && (body as Record<string, unknown>)['product']) ? (body as Record<string, unknown>)['product'] as ApiProduct : (body as ApiProduct)
 
     if (!product) return notFound()
 
-    // Build images array — prefer `product.images` if available, else fall back to `image_url`
-    const images = (product.images && Array.isArray(product.images) && product.images.length)
-        ? product.images.map((it: any) => ({ id: it.id ?? undefined, url: normalizeSrc(it.url ?? it.path ?? it.full_url ?? it) }))
-        : (product.image_url ? [{ url: normalizeSrc(product.image_url) }] : [])
+    // Build images array with proper typing and guards
+    const images = Array.isArray(product.images) && product.images.length > 0
+        ? product.images.map((it) => {
+            if (typeof it === 'string') {
+                return { id: undefined as number | undefined, url: normalizeSrc(it) }
+            }
+            if (typeof it === 'object' && it !== null) {
+                const rec = it as Record<string, unknown>
+                const id = rec['id'] != null ? Number(rec['id']) : undefined
+                const rawUrl = (rec['url'] ?? rec['path'] ?? rec['full_url']) ?? ''
+                return { id, url: normalizeSrc(String(rawUrl)) }
+            }
+            return { id: undefined as number | undefined, url: '' }
+        }).filter(x => x.url)
+        : (product.image_url ? [{ id: undefined as number | undefined, url: normalizeSrc(product.image_url) }] : [])
 
     const priceLabel = typeof product.price === 'number' ? Number(product.price).toLocaleString() : (product.price ?? '—')
-    const categoryLabel = typeof product.category === 'string' ? product.category : (product.category?.name ?? '—')
+    const categoryLabel = typeof product.category === 'string' ? product.category : (product.category && typeof product.category === 'object' ? (product.category as { name?: string }).name ?? '—' : '—')
 
     return (
         <Layout>
@@ -60,7 +66,6 @@ export default async function ProductDetail({ params }: Params) {
                 </Link>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* left: gallery */}
                     <div>
                         <ProductGallery images={images} title={product.title ?? ''} />
                         <div className="mt-6 flex flex-wrap gap-4 w-full">
@@ -77,7 +82,6 @@ export default async function ProductDetail({ params }: Params) {
                         </div>
                     </div>
 
-                    {/* right: details + order panel */}
                     <div className="flex flex-col">
                         <div className="mb-4">
                             <h1 className="text-3xl font-bold text-gray-900">{product.title}</h1>
@@ -97,7 +101,6 @@ export default async function ProductDetail({ params }: Params) {
                             <div className="text-3xl font-bold text-indigo-800">{priceLabel}</div>
 
                             <div className="mt-6">
-                                {/* OrderPanel is client — handles quantity, create order calls */}
                                 <OrderPanel productId={product.id} productTitle={product.title ?? ''} productPrice={String(product.price ?? '')} />
                             </div>
                         </div>

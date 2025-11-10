@@ -19,6 +19,7 @@ type OrderItem = {
   unit_price?: number
   total_price?: number
   product?: ProductMini | null
+  extra?: Record<string, unknown>
 }
 
 type Order = {
@@ -33,9 +34,10 @@ type Order = {
   items?: OrderItem[]
   created_at?: string | null
   product?: { title?: string } | null
+  extra?: Record<string, unknown>
 }
 
-const STATUS_OPTIONS = ['new', 'pending', 'contacted', 'completed', 'cancelled']
+const STATUS_OPTIONS = ['new', 'pending', 'contacted', 'completed', 'cancelled'] as const
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
@@ -43,6 +45,30 @@ export default function AdminOrdersPage() {
   const [error, setError] = useState<string | null>(null)
   const [updatingIds, setUpdatingIds] = useState<Record<number, boolean>>({})
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
+
+  // helper: safe message extractor from unknown JSON bodies
+  function extractMessage(body: unknown, fallback = ''): string {
+    if (typeof body === 'object' && body !== null) {
+      const b = body as Record<string, unknown>
+      const m = b['message']
+      if (typeof m === 'string') return m
+    }
+    return fallback
+  }
+
+  // helper: try to coerce body to Order or list of Orders when possible
+  function parseOrders(body: unknown): Order[] {
+    if (Array.isArray(body)) {
+      return body as Order[]
+    }
+    if (typeof body === 'object' && body !== null) {
+      const b = body as Record<string, unknown>
+      if (Array.isArray(b['data'])) return b['data'] as Order[]
+      // maybe single order or paginated object — if it has id treat as single
+      if (typeof b['id'] === 'number') return [b as Order]
+    }
+    return []
+  }
 
   async function load() {
     setLoading(true)
@@ -54,13 +80,19 @@ export default function AdminOrdersPage() {
         window.location.href = '/admin/login'
         return
       }
-      const body = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(body?.message || res.statusText || 'Failed to load orders')
 
-      const list: Order[] = Array.isArray(body) ? body : (body.data ?? [])
+      // parse JSON as unknown
+      const body = await res.json().catch(() => null) as unknown
+      if (!res.ok) {
+        const msg = extractMessage(body, res.statusText || 'Failed to load orders')
+        throw new Error(msg)
+      }
+
+      const list = parseOrders(body)
       setOrders(list)
-    } catch (e: any) {
-      setError(e?.message ?? 'Failed to load orders')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setError(msg || 'Failed to load orders')
     } finally {
       setLoading(false)
     }
@@ -77,6 +109,7 @@ export default function AdminOrdersPage() {
     if (!prev) return
     const prevStatus = prev.status
 
+    // optimistic UI
     setOrders(list => list.map(o => (o.id === id ? { ...o, status: newStatus } : o)))
     setUpdatingIds(s => ({ ...s, [id]: true }))
 
@@ -91,16 +124,23 @@ export default function AdminOrdersPage() {
         window.location.href = '/admin/login'
         return
       }
-      const body = await res.json().catch(() => null)
-      if (!res.ok) throw new Error(body?.message || res.statusText || 'Failed to update order')
 
-      const updated = body && body.id ? body : null
-      if (updated) {
+      const body = await res.json().catch(() => null) as unknown
+      if (!res.ok) {
+        const msg = extractMessage(body, res.statusText || 'Failed to update order')
+        throw new Error(msg)
+      }
+
+      // if API returned an updated order object, merge it
+      if (typeof body === 'object' && body !== null && typeof (body as Record<string, unknown>)['id'] === 'number') {
+        const updated = body as Partial<Order> & { id: number }
         setOrders(list => list.map(o => (o.id === id ? { ...o, ...(updated as Partial<Order>) } : o)))
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      // rollback on error
       setOrders(list => list.map(o => (o.id === id ? { ...o, status: prevStatus } : o)))
-      alert('Failed to update status: ' + (err?.message ?? 'Unknown error'))
+      const msg = err instanceof Error ? err.message : String(err)
+      alert('Failed to update status: ' + (msg || 'Unknown error'))
     } finally {
       setUpdatingIds(s => {
         const copy = { ...s }
@@ -127,7 +167,6 @@ export default function AdminOrdersPage() {
       )
     }
 
-    // Use plain <img> so we avoid Next/Image remote config here, but if you prefer Next/Image adjust accordingly.
     return <img src={url} alt={alt ?? ''} className="w-12 h-12 object-cover rounded" />
   }
 
@@ -157,7 +196,6 @@ export default function AdminOrdersPage() {
           {orders.map(o => (
             <div key={o.id} className="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row justify-between gap-4">
               <div className="flex-1 flex gap-4">
-                {/* If there is a first item product thumbnail, show it */}
                 <div className="flex-shrink-0">
                   {o.items && o.items[0]?.product?.image_url ? (
                     <Thumbnail src={o.items[0].product?.image_url} alt={o.items[0].title} />

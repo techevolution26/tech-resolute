@@ -1,27 +1,58 @@
 'use client'
 import React, { useEffect, useState } from 'react'
 
+type NotificationData = Record<string, unknown>
+
+type NotificationItem = {
+    id: string
+    created_at?: string | null
+    data?: NotificationData
+    read_at?: string | null
+    [k: string]: unknown
+}
+
 export default function AdminNotifications() {
     const [count, setCount] = useState<number>(0)
-    const [items, setItems] = useState<any[]>([])
+    const [items, setItems] = useState<NotificationItem[]>([])
     const [open, setOpen] = useState(false)
 
     async function fetchCount() {
         try {
             const res = await fetch('/api/v1/admin/notifications/count', { credentials: 'same-origin' })
             if (!res.ok) return
-            const body = await res.json()
-            setCount(body.count ?? 0)
-        } catch { }
+            const body = await res.json().catch(() => null) as unknown
+            if (body && typeof body === 'object') {
+                const num = (body as Record<string, unknown>)['count']
+                setCount(typeof num === 'number' ? num : Number(num ?? 0))
+            }
+        } catch {
+            // ignore
+        }
     }
 
     async function fetchItems() {
         try {
             const res = await fetch('/api/v1/admin/notifications?unread=1&per=10', { credentials: 'same-origin' })
             if (!res.ok) return
-            const body = await res.json()
-            setItems(Array.isArray(body) ? body : [])
-        } catch { }
+            const body = await res.json().catch(() => null) as unknown
+            if (Array.isArray(body)) {
+                const arr = body.filter(i => i && typeof i === 'object') as unknown[]
+                const mapped = arr.map((it) => {
+                    const rec = it as Record<string, unknown>
+                    return {
+                        id: String(rec['id'] ?? ''),
+                        created_at: rec['created_at'] ? String(rec['created_at']) : null,
+                        data: (rec['data'] && typeof rec['data'] === 'object') ? (rec['data'] as NotificationData) : {},
+                        read_at: rec['read_at'] ? String(rec['read_at']) : null
+                    } as NotificationItem
+                })
+                setItems(mapped)
+            } else {
+                setItems([])
+            }
+        } catch {
+            // ignore
+        }
     }
 
     useEffect(() => {
@@ -32,18 +63,19 @@ export default function AdminNotifications() {
         setOpen(s => !s)
         if (!open) {
             await fetchItems()
-            // allow marking read later from list
         }
     }
 
     async function markRead(id?: string) {
         try {
-            const url = id ? `/api/v1/admin/notifications/${id}/mark-read` : '/api/v1/admin/notifications/mark-read'
+            const url = id ? `/api/v1/admin/notifications/${encodeURIComponent(id)}/mark-read` : '/api/v1/admin/notifications/mark-read'
             await fetch(url, { method: 'POST', credentials: 'same-origin' })
             await fetchCount()
             if (!id) setItems([])
             else setItems(prev => prev.filter(i => i.id !== id))
-        } catch { }
+        } catch {
+            // ignore
+        }
     }
 
     return (
@@ -62,16 +94,24 @@ export default function AdminNotifications() {
 
                     <div className="space-y-2 max-h-64 overflow-auto">
                         {items.length === 0 && <div className="text-xs text-gray-500">No unread notifications</div>}
-                        {items.map(it => (
-                            <div key={it.id} className="p-2 border rounded">
-                                <div className="text-sm">{it.data?.contact_name ?? it.data?.message ?? 'Notification'}</div>
-                                <div className="text-xs text-gray-400">{new Date(it.created_at).toLocaleString()}</div>
-                                <div className="mt-2 flex gap-2">
-                                    <a href={`/admin/seller-applications/${it.data?.application_id ?? ''}`} className="text-xs text-indigo-600">View</a>
-                                    <button onClick={() => markRead(it.id)} className="text-xs text-gray-600">Mark read</button>
+                        {items.map(it => {
+                            const created = it.created_at ? (() => {
+                                try { return new Date(it.created_at as string).toLocaleString() } catch { return String(it.created_at) }
+                            })() : ''
+                            const contactName = it.data && typeof it.data === 'object' ? (String(it.data['contact_name'] ?? it.data['name'] ?? '')) : ''
+                            const message = it.data && typeof it.data === 'object' ? (String(it.data['message'] ?? '')) : ''
+                            const appId = it.data && typeof it.data === 'object' ? (String(it.data['application_id'] ?? '')) : ''
+                            return (
+                                <div key={it.id} className="p-2 border rounded">
+                                    <div className="text-sm">{contactName || message || 'Notification'}</div>
+                                    <div className="text-xs text-gray-400">{created}</div>
+                                    <div className="mt-2 flex gap-2">
+                                        <a href={`/admin/seller-applications/${appId}`} className="text-xs text-indigo-600">View</a>
+                                        <button onClick={() => markRead(it.id)} className="text-xs text-gray-600">Mark read</button>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
             )}
