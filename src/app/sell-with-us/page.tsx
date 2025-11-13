@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { normalizeSrc } from '../../lib/normalizeSrc'
 import {
@@ -25,7 +25,7 @@ type ItemRow = {
     quantity?: number
     estimated_price?: string
     description?: string
-    image?: string // absolute public URL from upload or blob URL
+    image?: string // absolute public URL from upload or blob/data URL
 }
 
 type FormState = {
@@ -94,12 +94,31 @@ export default function SellWithUsPage() {
     const [errors, setErrors] = useState<Record<string, string[]>>({})
     const [success, setSuccess] = useState<string | null>(null)
 
+    // track created blob/data URLs so we can revoke them on cleanup
+    const blobUrlsRef = useRef<string[]>([])
+
+    useEffect(() => {
+        return () => {
+            // revoke any leftover blob urls on unmount
+            blobUrlsRef.current.forEach(u => {
+                try { URL.revokeObjectURL(u) } catch { /* ignore */ }
+            })
+            blobUrlsRef.current = []
+        }
+    }, [])
+
     // IMPORTANT: set sensible envs:
     // NEXT_PUBLIC_API_URL => e.g. http://127.0.0.1:8000/api
     // NEXT_PUBLIC_STORAGE_URL => e.g. http://127.0.0.1:8000  (no /api)
     const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '')
     const storageBaseCandidate = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/$/, '')
     const storageBase = storageBaseCandidate || apiBase.replace(/\/api\/?$/i, '')
+
+    // small helper to detect blob/data urls
+    function isBlobOrData(u?: string | null) {
+        if (!u) return false
+        return /^blob:/.test(u) || /^data:/.test(u)
+    }
 
     // --- helper: client-side image resize to a blob ---
     async function resizeImage(file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.8): Promise<Blob> {
@@ -243,17 +262,28 @@ export default function SellWithUsPage() {
         setError(null)
 
         const tmp = URL.createObjectURL(f)
+        // track it so we can revoke later
+        blobUrlsRef.current.push(tmp)
         setForm(prev => ({ ...prev, logo: tmp }))
 
         try {
             const key = 'logo'
             const serverUrl = await uploadFileWithProgress(f, key)
-            if (serverUrl) setForm(prev => ({ ...prev, logo: serverUrl }))
+            if (serverUrl) {
+                setForm(prev => ({ ...prev, logo: serverUrl }))
+
+                // revoke the temporary blob url since we replaced with server url
+                const idx = blobUrlsRef.current.indexOf(tmp)
+                if (idx > -1) {
+                    try { URL.revokeObjectURL(tmp) } catch { /* ignore */ }
+                    blobUrlsRef.current.splice(idx, 1)
+                }
+            }
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : String(err))
-        } finally {
-            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
+            // keep the preview (user can retry upload)
         }
+        // do NOT revoke the blob here unconditionally
     }
 
     // immediate blob preview then replace with server url; keeps upload progress in uploadProgress[key]
@@ -262,17 +292,27 @@ export default function SellWithUsPage() {
         setError(null)
 
         const tmp = URL.createObjectURL(f)
+        blobUrlsRef.current.push(tmp)
         updateItem(itemId, { image: tmp })
 
         try {
             const key = `item-${itemId}`
             const serverUrl = await uploadFileWithProgress(f, key)
-            if (serverUrl) updateItem(itemId, { image: serverUrl })
+            if (serverUrl) {
+                updateItem(itemId, { image: serverUrl })
+
+                // revoke tmp
+                const idx = blobUrlsRef.current.indexOf(tmp)
+                if (idx > -1) {
+                    try { URL.revokeObjectURL(tmp) } catch { /* ignore */ }
+                    blobUrlsRef.current.splice(idx, 1)
+                }
+            }
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : String(err))
-        } finally {
-            setTimeout(() => { try { URL.revokeObjectURL(tmp) } catch { } }, 1500)
+            // keep preview for retry
         }
+        // do NOT revoke the blob here unconditionally
     }
 
     function updateField<K extends keyof FormState>(k: K, v: FormState[K]) {
@@ -644,7 +684,7 @@ export default function SellWithUsPage() {
                                                     )}
                                                     {it.image && (
                                                         <div className="mt-3 h-32 w-full relative bg-white rounded-xl border border-gray-200 p-2">
-                                                            {String(it.image).startsWith('blob:') ? (
+                                                            {isBlobOrData(it.image) ? (
                                                                 // eslint-disable-next-line @next/next/no-img-element
                                                                 <img src={it.image} alt="item preview" className="h-28 object-contain mx-auto" />
                                                             ) : (
@@ -725,7 +765,7 @@ export default function SellWithUsPage() {
                                 )}
                                 {form.logo && (
                                     <div className="mt-3 h-32 w-32 relative bg-white rounded-xl border border-gray-200 p-2">
-                                        {String(form.logo).startsWith('blob:') ? (
+                                        {isBlobOrData(form.logo) ? (
                                             // eslint-disable-next-line @next/next/no-img-element
                                             <img src={form.logo} alt="logo" className="h-28 object-contain mx-auto" />
                                         ) : (

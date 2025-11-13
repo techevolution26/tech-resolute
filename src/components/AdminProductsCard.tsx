@@ -1,4 +1,3 @@
-// src/components/AdminProductCard.tsx
 'use client'
 
 import React from 'react'
@@ -20,7 +19,7 @@ interface Product {
     price?: string
     category?: string
     condition?: string
-    image_url?: string
+    image_url?: string | null
     slug?: string
     stock?: number
     status?: 'active' | 'draft' | 'archived' | string
@@ -31,6 +30,57 @@ type Props = {
     product: Product
     onDelete?: (id: number) => void
     viewMode?: 'grid' | 'list'
+}
+
+function isAbsoluteUrl(u?: string | null) {
+    if (!u) return false
+    return /^https?:\/\//i.test(String(u))
+}
+
+/** Render image consistently and with stable return type (ReactNode) */
+function RenderProductImage({
+    src,
+    alt,
+    width,
+    height,
+    imgClassName,
+    wrapperFallback
+}: {
+    src?: string | null
+    alt?: string
+    width: number
+    height: number
+    imgClassName?: string
+    wrapperFallback?: React.ReactNode
+}): React.ReactNode {
+    if (!src) return wrapperFallback ?? null
+
+    const n = normalizeSrc(src)
+
+    if (isAbsoluteUrl(n)) {
+        // remote absolute url -> let browser fetch directly
+        // eslint-disable-next-line @next/next/no-img-element
+        return (
+            <img
+                src={n}
+                alt={alt ?? ''}
+                width={width}
+                height={height}
+                className={imgClassName}
+            />
+        )
+    }
+
+    // local/path -> Next Image for optimization
+    return (
+        <Image
+            src={n}
+            alt={alt ?? ''}
+            width={width}
+            height={height}
+            className={imgClassName}
+        />
+    )
 }
 
 export default function AdminProductCard({ product, onDelete, viewMode = 'grid' }: Props) {
@@ -51,6 +101,13 @@ export default function AdminProductCard({ product, onDelete, viewMode = 'grid' 
     const status = getStatusConfig(product.status);
     const StatusIcon = status.icon;
 
+    const noImageFallback = (
+        <div className="flex flex-col items-center text-amber-400">
+            <PhotoIcon className="w-6 h-6" />
+            <div className="text-xs text-amber-500 mt-1">No image</div>
+        </div>
+    )
+
     if (viewMode === 'list') {
         return (
             <article className="group bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300 border border-gray-200 hover:border-amber-300">
@@ -61,20 +118,14 @@ export default function AdminProductCard({ product, onDelete, viewMode = 'grid' 
                         className="flex-shrink-0 relative no-underline"
                     >
                         <div className="w-20 h-20 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl overflow-hidden flex items-center justify-center border border-amber-200 group-hover:border-amber-300 transition-colors duration-200">
-                            {product.image_url ? (
-                                <Image
-                                    src={normalizeSrc(product.image_url)}
-                                    alt={product.title}
-                                    width={80}
-                                    height={80}
-                                    className="object-cover w-full h-full"
-                                />
-                            ) : (
-                                <div className="flex flex-col items-center text-amber-400">
-                                    <PhotoIcon className="w-6 h-6" />
-                                    <div className="text-xs text-amber-500 mt-1">No image</div>
-                                </div>
-                            )}
+                            {RenderProductImage({
+                                src: product.image_url ?? null,
+                                alt: product.title,
+                                width: 80,
+                                height: 80,
+                                imgClassName: 'object-cover w-full h-full',
+                                wrapperFallback: noImageFallback
+                            })}
                         </div>
                     </Link>
 
@@ -174,20 +225,19 @@ export default function AdminProductCard({ product, onDelete, viewMode = 'grid' 
                 className="block mb-4 relative no-underline"
             >
                 <div className="w-full h-48 bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl overflow-hidden flex items-center justify-center border border-amber-200 group-hover:border-amber-300 transition-colors duration-200">
-                    {product.image_url ? (
-                        <Image
-                            src={normalizeSrc(product.image_url)}
-                            alt={product.title}
-                            width={200}
-                            height={200}
-                            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
-                        />
-                    ) : (
-                        <div className="flex flex-col items-center text-amber-400">
-                            <PhotoIcon className="w-12 h-12" />
-                            <div className="text-sm text-amber-500 mt-2">No image</div>
-                        </div>
-                    )}
+                    {RenderProductImage({
+                        src: product.image_url ?? null,
+                        alt: product.title,
+                        width: 200,
+                        height: 200,
+                        imgClassName: 'object-cover w-full h-full',
+                        wrapperFallback: (
+                            <div className="flex flex-col items-center text-amber-400">
+                                <PhotoIcon className="w-12 h-12" />
+                                <div className="text-sm text-amber-500 mt-2">No image</div>
+                            </div>
+                        )
+                    })}
                 </div>
             </Link>
 

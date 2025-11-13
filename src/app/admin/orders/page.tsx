@@ -306,7 +306,6 @@ export default function AdminOrdersPage() {
   }
 
   // Calculate order statistics - UPDATED VERSION
-  // Calculate order statistics - UPDATED VERSION WITH PROPER NUMBER HANDLING
   const stats = useMemo(() => {
     const total = orders.length
 
@@ -316,7 +315,6 @@ export default function AdminOrdersPage() {
     // Safely convert order totals to numbers, defaulting to 0 for invalid values
     const totalRevenue = completedOrders.reduce((sum, order) => {
       const orderTotal = order.total;
-      // Handle different possible types: number, string, null, undefined
       const numericTotal = typeof orderTotal === 'number'
         ? orderTotal
         : typeof orderTotal === 'string'
@@ -409,9 +407,31 @@ export default function AdminOrdersPage() {
     }
   }
 
+  // Thumbnail: improved, client-aware normalization + onError fallback (preserves CSS)
   const Thumbnail: React.FC<{ src?: string | null; alt?: string }> = ({ src, alt }) => {
-    const url = src ? normalizeSrc(src) : null
-    if (!url) {
+    const [broken, setBroken] = useState(false)
+
+    // Normalize & prefer secure protocol on client
+    let url: string | null = src ? normalizeSrc(src) : null
+
+    if (url && typeof window !== 'undefined') {
+      try {
+        // protocol-relative -> prefix with current page protocol
+        if (url.startsWith('//')) url = `${window.location.protocol}${url}`
+
+        // upgrade http -> https when page is secure
+        if (window.location.protocol === 'https:' && url.startsWith('http:')) {
+          url = url.replace(/^http:/, 'https:')
+        }
+
+        // encode spaces etc
+        url = encodeURI(url)
+      } catch {
+        // leave url as-is if encode fails
+      }
+    }
+
+    if (!url || broken) {
       return (
         <div className="w-12 h-12 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl border border-gray-300 flex items-center justify-center text-gray-400">
           <ShoppingBagIcon className="w-5 h-5" />
@@ -419,7 +439,15 @@ export default function AdminOrdersPage() {
       )
     }
 
-    return <img src={url} alt={alt ?? ''} className="w-12 h-12 object-cover rounded-xl border border-gray-200" />
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={url}
+        alt={alt ?? ''}
+        className="w-12 h-12 object-cover rounded-xl border border-gray-200"
+        onError={() => setBroken(true)}
+      />
+    )
   }
 
   const StatusBadge: React.FC<{ status: string }> = ({ status }) => (

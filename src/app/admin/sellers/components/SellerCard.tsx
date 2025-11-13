@@ -1,4 +1,3 @@
-// src/app/admin/sellers/components/SellerCard.tsx
 'use client'
 import React, { useMemo, useState } from 'react'
 import type { Application, Item } from '../types'
@@ -25,32 +24,76 @@ type Props = {
  * Resolve a storage URL returned by API:
  * - if already absolute return as-is (normalize /api/storage -> /storage)
  * - if relative prefix with storage base derived from envs
+ *
+ * Client-aware: prefers current page protocol (avoids mixed-content http on https pages).
+ * Returns an encoded absolute URL string or null.
  */
 function resolveStorageUrl(raw?: string | null): string | null {
     if (!raw) return null
     const s = String(raw).trim()
     if (!s) return null
 
-    if (/^https?:\/\//i.test(s) || /^\/\//.test(s)) {
-        const abs = s.startsWith('//') ? 'http:' + s : s
+    const isClient = typeof window !== 'undefined'
+    const pageProtocol = isClient ? window.location.protocol : 'https:'
+
+    // If protocol-relative (//example.com/path) -> prefix with page protocol (https: or http:)
+    if (/^\/\//.test(s)) {
+        const abs = `${pageProtocol}${s}`
         return abs.replace(/\/api\/storage/gi, '/storage')
     }
 
+    // If absolute http(s) URL, normalize /api/storage -> /storage
+    if (/^https?:\/\//i.test(s)) {
+        try {
+            const u = new URL(s)
+            // If page is secure and the url is http (mixed content), try to upgrade to https
+            if (isClient && pageProtocol === 'https:' && u.protocol === 'http:') {
+                u.protocol = 'https:'
+            }
+            return u.toString().replace(/\/api\/storage/gi, '/storage')
+        } catch {
+            // fallthrough to treat as relative
+        }
+    }
+
+    // Otherwise treat as relative path: prefix with NEXT_PUBLIC_STORAGE_URL or derived storage base
     const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '')
     const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/$/, '')
-    const storageBase = storageEnv || apiBase.replace(/\/api\/?$/i, '')
+    let storageBase = storageEnv || apiBase.replace(/\/api\/?$/i, '')
+
+    // If we're client-side on https, try to ensure storageBase uses https to avoid mixed content.
+    try {
+        const parsed = new URL(storageBase)
+        if (isClient && pageProtocol === 'https:' && parsed.protocol === 'http:') {
+            parsed.protocol = 'https:'
+            storageBase = parsed.toString().replace(/\/$/, '')
+        }
+    } catch {
+        // ignore parse errors, we'll just concatenate
+    }
 
     const path = s.startsWith('/') ? s : `/${s.replace(/^\/+/, '')}`
-    const candidate = `${storageBase}${path}`.replace(/\/api\/storage/gi, '/storage')
+    let candidate = `${storageBase}${path}`.replace(/\/api\/storage/gi, '/storage')
 
-    // avoid duplicated protocol fragments
+    // avoid duplicated protocol fragments: http://http... etc
     const httpMatches = candidate.match(/https?:\/\//ig)
     if (httpMatches && httpMatches.length > 1) {
         const lastIdx = candidate.lastIndexOf('http')
-        return candidate.slice(lastIdx)
+        candidate = candidate.slice(lastIdx)
     }
 
-    return candidate
+    try {
+        // encode spaces etc
+        const u = new URL(candidate)
+        return encodeURI(u.toString())
+    } catch {
+        // fallback: return encoded candidate anyway
+        try {
+            return encodeURI(candidate)
+        } catch {
+            return null
+        }
+    }
 }
 
 export default function SellerCard({ app, onReview }: Props) {
@@ -202,6 +245,10 @@ export default function SellerCard({ app, onReview }: Props) {
                                                         alt={it.title ?? `item-${i + 1}`}
                                                         className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
                                                         onClick={() => { setStartIndex(0); setOpenImages(images) }}
+                                                        onError={(e) => {
+                                                            // hide broken image and keep "No image" fallback visible
+                                                            try { (e.currentTarget as HTMLImageElement).style.display = 'none' } catch { }
+                                                        }}
                                                     />
                                                 ) : (
                                                     <div className="text-xs text-gray-400 text-center px-2">No image</div>
