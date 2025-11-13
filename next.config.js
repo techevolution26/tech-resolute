@@ -1,9 +1,16 @@
-// next.config.js
 /** @type {import('next').NextConfig} */
+
+// Use an env var for production backend host (resolved at build time).
+// For local dev this file also includes localhost/127.0.0.1 patterns.
+const backendHost =
+  process.env.BACKEND_HOST ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/^https?:\/\//, "") ||
+  "tech-resolute-backend-production.up.railway.app";
+
 const nextConfig = {
   images: {
     remotePatterns: [
-      // dev/local storage paths
+      // local dev (http)
       {
         protocol: "http",
         hostname: "127.0.0.1",
@@ -16,8 +23,6 @@ const nextConfig = {
         port: "8000",
         pathname: "/storage/**",
       },
-
-      // /api/storage fallbacks
       {
         protocol: "http",
         hostname: "127.0.0.1",
@@ -31,46 +36,13 @@ const nextConfig = {
         pathname: "/api/storage/**",
       },
 
-      // production backend on Railway
-      {
-        protocol: "https",
-        hostname: "tech-resolute-backend-production.up.railway.app",
-        pathname: "/**",
-      },
-      {protocol: "https",
-      hostname: "s3.amazonaws.com",
-      pathname: "/**"
-      },
+      // production backend (https) - allow any path from the backend host
+      { protocol: "https", hostname: backendHost, pathname: "/**" },
 
+      // common S3 host (may need to add region-specific hosts if you use them)
+      { protocol: "https", hostname: "s3.amazonaws.com", pathname: "/**" },
     ],
   },
 };
 
 module.exports = nextConfig;
-
-// next.config.js
-/** @type {import('next').NextConfig} */
-// const devRemotePatterns = [
-//   { protocol: 'http', hostname: '127.0.0.1', port: '8000', pathname: '/storage/**' },
-//   { protocol: 'http', hostname: 'localhost', port: '8000', pathname: '/storage/**' },
-//   { protocol: 'http', hostname: '127.0.0.1', port: '8000', pathname: '/api/storage/**' },
-//   { protocol: 'http', hostname: 'localhost', port: '8000', pathname: '/api/storage/**' },
-// ];
-
-// const prodRemotePatterns = [];
-// if (process.env.NODE_ENV === 'production') {
-//   const backendHost = process.env.BACKEND_HOST || 'tech-resolute-backend-production.up.railway.app';
-//   prodRemotePatterns.push({
-//     protocol: 'https',
-//     hostname: backendHost,
-//     pathname: '/**', // or narrow to '/storage/**' if you can
-//   });
-// }
-
-// const nextConfig = {
-//   images: {
-//     remotePatterns: [...devRemotePatterns, ...prodRemotePatterns],
-//   },
-// };
-
-// module.exports = nextConfig;
