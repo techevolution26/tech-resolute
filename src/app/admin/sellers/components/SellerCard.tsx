@@ -28,73 +28,84 @@ type Props = {
  * Client-aware: prefers current page protocol (avoids mixed-content http on https pages).
  * Returns an encoded absolute URL string or null.
  */
+/**
+ * Resolve a storage URL returned by API:
+ * - if already absolute return normalized (and avoid mixed-content)
+ * - if absolute points to localhost, rewrite to NEXT_PUBLIC_STORAGE_URL origin
+ * - if relative, prefix with storage base derived from envs
+ */
 function resolveStorageUrl(raw?: string | null): string | null {
-    if (!raw) return null
-    const s = String(raw).trim()
-    if (!s) return null
+  if (!raw) return null
+  const s = String(raw).trim()
+  if (!s) return null
 
-    const isClient = typeof window !== 'undefined'
-    const pageProtocol = isClient ? window.location.protocol : 'https:'
+  const isClient = typeof window !== 'undefined'
+  const pageProtocol = isClient ? window.location.protocol : 'https:'
 
-    // If protocol-relative (//example.com/path) -> prefix with page protocol (https: or http:)
-    if (/^\/\//.test(s)) {
-        const abs = `${pageProtocol}${s}`
-        return abs.replace(/\/api\/storage/gi, '/storage')
-    }
+  // protocol-relative //host/path -> prefix with page protocol
+  if (/^\/\//.test(s)) {
+    const abs = `${pageProtocol}${s}`
+    return abs.replace(/\/api\/storage/gi, '/storage')
+  }
 
-    // If absolute http(s) URL, normalize /api/storage -> /storage
-    if (/^https?:\/\//i.test(s)) {
-        try {
-            const u = new URL(s)
-            // If page is secure and the url is http (mixed content), try to upgrade to https
-            if (isClient && pageProtocol === 'https:' && u.protocol === 'http:') {
-                u.protocol = 'https:'
-            }
-            return u.toString().replace(/\/api\/storage/gi, '/storage')
-        } catch {
-            // fallthrough to treat as relative
-        }
-    }
-
-    // Otherwise treat as relative path: prefix with NEXT_PUBLIC_STORAGE_URL or derived storage base
-    const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/$/, '')
-    const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/$/, '')
-    let storageBase = storageEnv || apiBase.replace(/\/api\/?$/i, '')
-
-    // If we're client-side on https, try to ensure storageBase uses https to avoid mixed content.
+  // if absolute URL, normalize and possibly rewrite localhost -> configured storage origin
+  if (/^https?:\/\//i.test(s)) {
     try {
-        const parsed = new URL(storageBase)
-        if (isClient && pageProtocol === 'https:' && parsed.protocol === 'http:') {
-            parsed.protocol = 'https:'
-            storageBase = parsed.toString().replace(/\/$/, '')
-        }
-    } catch {
-        // ignore parse errors, we'll just concatenate
-    }
+      const u = new URL(s.replace(/\/api\/storage/gi, '/storage'))
+      // if page is https and url is http => try upgrade to https
+      if (isClient && pageProtocol === 'https:' && u.protocol === 'http:') {
+        u.protocol = 'https:'
+      }
 
-    const path = s.startsWith('/') ? s : `/${s.replace(/^\/+/, '')}`
-    let candidate = `${storageBase}${path}`.replace(/\/api\/storage/gi, '/storage')
-
-    // avoid duplicated protocol fragments: http://http... etc
-    const httpMatches = candidate.match(/https?:\/\//ig)
-    if (httpMatches && httpMatches.length > 1) {
-        const lastIdx = candidate.lastIndexOf('http')
-        candidate = candidate.slice(lastIdx)
-    }
-
-    try {
-        // encode spaces etc
-        const u = new URL(candidate)
-        return encodeURI(u.toString())
-    } catch {
-        // fallback: return encoded candidate anyway
+      // rewrite local dev hosts to storage env origin (so Vercel/clients don't call localhost)
+      const localHosts = ['localhost', '127.0.0.1', '::1']
+      if (localHosts.includes(u.hostname)) {
+        const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/+$/, '')
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/+$/, '')
+        const storageBase = storageEnv || apiBase.replace(/\/api$/i, '')
         try {
-            return encodeURI(candidate)
+          const storageOrigin = new URL(storageBase).origin
+          return storageOrigin + u.pathname + u.search + u.hash
         } catch {
-            return null
+          // if storageBase invalid, fall back to the original (but normalized)
         }
+      }
+
+      return u.toString()
+    } catch {
+      // fallthrough to treat as relative
     }
+  }
+
+  // treat as relative path -> prefix with storage base
+  const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/+$/, '')
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000/api').replace(/\/+$/, '')
+  const storageBase = storageEnv || apiBase.replace(/\/api$/i, '')
+
+  const path = s.startsWith('/') ? s : `/${s.replace(/^\/+/, '')}`
+  let candidate = `${storageBase}${path}`.replace(/\/api\/storage/gi, '/storage')
+
+  // collapse accidental duplicated host fragments
+  const httpMatches = candidate.match(/https?:\/\//ig)
+  if (httpMatches && httpMatches.length > 1) {
+    const lastIdx = candidate.lastIndexOf('http')
+    candidate = candidate.slice(lastIdx)
+  }
+
+  // if page is https, try to upgrade candidate's protocol to https to avoid mixed content
+  try {
+    const parsed = new URL(candidate)
+    if (isClient && pageProtocol === 'https:' && parsed.protocol === 'http:') {
+      parsed.protocol = 'https:'
+      candidate = parsed.toString()
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try { return encodeURI(candidate) } catch { return candidate }
 }
+
 
 export default function SellerCard({ app, onReview }: Props) {
     const [openImages, setOpenImages] = useState<string[] | null>(null)

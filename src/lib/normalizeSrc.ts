@@ -24,8 +24,30 @@ export function normalizeSrc(src?: string | null): string {
     // protocol-relative -> make absolute with http:
     if (/^\/\//.test(original)) original = 'http:' + original
 
-    // If it's already absolute, normalize /api/storage -> /storage and return
+    // If it's already absolute, normalize /api/storage -> /storage and return,
+    // but rewrite local hostnames to storageBase origin (so Vercel won't proxy localhost).
     if (/^https?:\/\//i.test(original)) {
+        try {
+            const parsed = new URL(original)
+            // rewrite local dev hosts to configured storage base
+            const localHosts = ['localhost', '127.0.0.1', '::1']
+            if (localHosts.includes(parsed.hostname)) {
+                const storageEnv = (process.env.NEXT_PUBLIC_STORAGE_URL ?? '').replace(/\/+$/, '')
+                let backend = storageEnv
+                if (!backend) {
+                    backend = (process.env.NEXT_PUBLIC_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
+                    backend = backend.replace(/\/api$/i, '')
+                }
+                try {
+                    const origin = new URL(backend).origin
+                    return origin + parsed.pathname + parsed.search + parsed.hash
+                } catch {
+                    // fallthrough to returning the original (but at least normalized below)
+                }
+            }
+        } catch {
+            // ignore parse
+        }
         return original.replace(/\/api\/storage/gi, '/storage')
     }
 

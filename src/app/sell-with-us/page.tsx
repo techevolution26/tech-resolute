@@ -222,6 +222,31 @@ export default function SellWithUsPage() {
                         // normalize accidental /api/storage -> /storage
                         absolute = absolute.replace(/\/api\/storage/gi, '/storage')
 
+                        // --------- NEW: rewrite local hosts to storageBase origin ----------
+                        try {
+                            const parsed = new URL(absolute)
+                            const localHosts = ['localhost', '127.0.0.1', '::1']
+                            if (localHosts.includes(parsed.hostname)) {
+                                let storageOrigin = ''
+                                try {
+                                    if (storageBase) {
+                                        storageOrigin = new URL(storageBase).origin
+                                    } else {
+                                        storageOrigin = new URL(apiBase).origin
+                                    }
+                                } catch {
+                                    storageOrigin = ''
+                                }
+
+                                if (storageOrigin) {
+                                    absolute = storageOrigin + parsed.pathname + parsed.search + parsed.hash
+                                }
+                            }
+                        } catch {
+                            // ignore URL parse errors and continue
+                        }
+                        // -----------------------------------------------------------------
+
                         // If the string mistakenly contains repeated host, collapse to last full URL part.
                         const httpOccurrences = absolute.match(/https?:\/\//ig)
                         if (httpOccurrences && httpOccurrences.length > 1) {
