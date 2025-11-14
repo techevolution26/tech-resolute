@@ -714,6 +714,7 @@ export default function SellWithUsPage() {
                                                                 <img src={it.image} alt="item preview" className="h-28 object-contain mx-auto" />
                                                             ) : (
                                                                 <Image
+                                                                    unoptimized
                                                                     src={normalizeSrc(it.image)}
                                                                     alt={it.title || 'preview'}
                                                                     width={160}
@@ -795,6 +796,7 @@ export default function SellWithUsPage() {
                                             <img src={form.logo} alt="logo" className="h-28 object-contain mx-auto" />
                                         ) : (
                                             <Image
+                                                unoptimized
                                                 src={normalizeSrc(form.logo)}
                                                 alt="logo"
                                                 width={128}
